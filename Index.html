@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Soybean Futures — Live Price</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;600;700;800&family=Barlow:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --main:    #27245F;
+    --main-dk: #1a1840;
+    --sec:     #1BB24A;
+    --sec-dim: #128336;
+    --tert:    #A3CE3A;
+    --white:   #ffffff;
+    --muted:   #8b8fb8;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    background: var(--main-dk);
+    color: var(--white);
+    font-family: 'Barlow', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .bg {
+    position: fixed; inset: 0; z-index: 0;
+    background:
+      radial-gradient(ellipse 80% 60% at 10% 20%, rgba(27,178,74,0.12) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 80% at 90% 80%, rgba(163,206,58,0.08) 0%, transparent 60%),
+      radial-gradient(ellipse 100% 100% at 50% 50%, var(--main) 0%, var(--main-dk) 100%);
+  }
+  .bg::after {
+    content: '';
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(163,206,58,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(163,206,58,0.04) 1px, transparent 1px);
+    background-size: 48px 48px;
+  }
+
+  .top-bar {
+    position: fixed; top:0; left:0; right:0; height:3px;
+    background: linear-gradient(90deg, var(--sec), var(--tert), var(--sec));
+    background-size: 200% 100%;
+    animation: shimmer 3s linear infinite;
+    z-index: 10;
+  }
+  @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
+  .wrapper {
+    position: relative; z-index:1;
+    display: flex; flex-direction: column; align-items: center;
+    width: 100%; max-width: 540px; padding: 24px;
+  }
+
+  .header {
+    width:100%; display:flex; align-items:center; justify-content:space-between;
+    margin-bottom:20px; opacity:0; animation: fadeUp 0.6s ease forwards;
+  }
+  .brand-name { font-family:'Barlow Condensed',sans-serif; font-weight:800; font-size:1.1rem; letter-spacing:0.2em; text-transform:uppercase; }
+  .brand-sub  { font-size:0.65rem; letter-spacing:0.2em; color:var(--muted); text-transform:uppercase; margin-top:2px; }
+
+  .live-badge {
+    display:flex; align-items:center; gap:7px;
+    background:rgba(27,178,74,0.12); border:1px solid rgba(27,178,74,0.3);
+    border-radius:20px; padding:5px 14px;
+    font-size:0.65rem; letter-spacing:0.15em; color:var(--sec); text-transform:uppercase; font-weight:500;
+  }
+  .live-dot { width:6px; height:6px; border-radius:50%; background:var(--sec); animation:pulse 1.5s infinite; }
+  .live-dot.off { background:var(--muted); animation:none; }
+  @keyframes pulse {
+    0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(27,178,74,0.5);}
+    50%{opacity:0.7;box-shadow:0 0 0 5px rgba(27,178,74,0);}
+  }
+
+  .card {
+    width:100%;
+    background:rgba(255,255,255,0.04);
+    border:1px solid rgba(255,255,255,0.1);
+    border-radius:16px; overflow:hidden;
+    backdrop-filter:blur(12px);
+    opacity:0; animation:fadeUp 0.6s ease 0.1s forwards;
+  }
+
+  .card-header {
+    background:linear-gradient(135deg,var(--main) 0%,rgba(55,50,130,0.8) 100%);
+    border-bottom:1px solid rgba(163,206,58,0.2);
+    padding:24px 32px 20px;
+    display:flex; align-items:flex-end; justify-content:space-between;
+  }
+  .commodity-label { font-family:'Barlow Condensed',sans-serif; font-weight:300; font-size:0.75rem; letter-spacing:0.25em; color:var(--muted); text-transform:uppercase; margin-bottom:4px; }
+  .commodity-name  { font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:2rem; letter-spacing:0.08em; text-transform:uppercase; line-height:1; }
+  .commodity-ticker { font-family:'Barlow Condensed',sans-serif; font-size:0.75rem; letter-spacing:0.15em; color:var(--tert); font-weight:600; background:rgba(163,206,58,0.1); border:1px solid rgba(163,206,58,0.25); border-radius:4px; padding:4px 10px; }
+
+  .price-section {
+    padding:32px 32px 24px;
+    display:flex; flex-direction:column; align-items:center; gap:8px;
+  }
+  .price-label { font-size:0.65rem; letter-spacing:0.2em; color:var(--muted); text-transform:uppercase; align-self:flex-start; }
+  .price-row { display:flex; align-items:baseline; gap:8px; width:100%; }
+  .currency { font-family:'Barlow Condensed',sans-serif; font-size:2.2rem; font-weight:300; color:var(--muted); line-height:1; margin-bottom:6px; }
+
+  .price {
+    font-family:'Barlow Condensed',sans-serif; font-weight:800; font-size:5.5rem;
+    line-height:1; color:var(--tert);
+    text-shadow:0 0 40px rgba(163,206,58,0.3);
+    transition:color 0.3s,text-shadow 0.3s;
+    flex:1; letter-spacing:-0.01em;
+  }
+  .price.flash-up   { color:var(--sec); text-shadow:0 0 60px rgba(27,178,74,0.8); }
+  .price.flash-down { color:#e85a4b;    text-shadow:0 0 60px rgba(232,90,75,0.8); }
+
+  .price-unit { font-size:0.75rem; color:var(--muted); letter-spacing:0.1em; align-self:flex-end; margin-bottom:12px; text-transform:uppercase; }
+
+  /* Connecting spinner shown before first data arrives */
+  .connecting {
+    display:flex; flex-direction:column; align-items:center; gap:12px;
+    padding:8px 0;
+  }
+  .spinner {
+    width:32px; height:32px;
+    border:2px solid rgba(163,206,58,0.2);
+    border-top-color:var(--tert);
+    border-radius:50%;
+    animation:spin 0.8s linear infinite;
+  }
+  @keyframes spin { to{transform:rotate(360deg)} }
+  .connecting-text { font-size:0.72rem; color:var(--muted); letter-spacing:0.15em; text-transform:uppercase; }
+
+  .divider { height:1px; background:linear-gradient(90deg,transparent,rgba(255,255,255,0.08),transparent); margin:0 32px; }
+
+  .status-bar { display:flex; align-items:center; gap:12px; background:rgba(0,0,0,0.2); border-top:1px solid rgba(255,255,255,0.05); padding:12px 32px; }
+  .status-text { font-size:0.65rem; color:var(--muted); letter-spacing:0.1em; text-transform:uppercase; flex:1; }
+  .timestamp   { font-size:0.65rem; color:var(--muted); font-variant-numeric:tabular-nums; }
+
+  .error-msg { font-size:0.7rem; color:#e85a4b; text-align:center; line-height:1.6; padding:8px 32px; }
+
+  .footer { margin-top:16px; font-size:0.6rem; color:rgba(255,255,255,0.15); letter-spacing:0.15em; text-transform:uppercase; opacity:0; animation:fadeUp 0.6s ease 0.3s forwards; }
+
+  @keyframes fadeUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+
+  /* Market Sessions */
+  .sessions {
+    padding: 16px 32px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+  }
+  .sessions-title {
+    font-size: 0.6rem;
+    letter-spacing: 0.2em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 2px;
+  }
+  .session-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 14px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 8px;
+  }
+  .session-name {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 600;
+    font-size: 0.82rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--white);
+  }
+  .session-hours {
+    font-size: 0.6rem;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+    margin-top: 2px;
+  }
+  .session-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 3px;
+  }
+  .session-badge {
+    font-size: 0.58rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 2px 9px;
+    border-radius: 20px;
+  }
+  .session-badge.open   { background:rgba(27,178,74,0.15); border:1px solid rgba(27,178,74,0.35); color:var(--sec); }
+  .session-badge.closed { background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:var(--muted); }
+  .session-timer {
+    font-size: 0.6rem;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.04em;
+  }
+  .session-timer.active { color: var(--tert); }
+
+</style>
+</head>
+<body>
+
+<div class="top-bar"></div>
+<div class="bg"></div>
+
+<div class="wrapper">
+
+  <div class="header">
+    <div>
+      <div class="brand-name">Market Dashboard</div>
+      <div class="brand-sub">Live Feed</div>
+    </div>
+    <div class="live-badge">
+      <div class="live-dot off" id="live-dot"></div>
+      <span id="live-label">Connecting...</span>
+    </div>
+  </div>
+
+  <div class="card">
+
+    <div class="card-header">
+      <div>
+        <div class="commodity-label">Commodity Futures</div>
+        <div class="commodity-name">Soybean</div>
+      </div>
+      <div class="commodity-ticker">ZS · CBOT</div>
+    </div>
+
+    <div class="price-section">
+      <div class="price-label">Current Price</div>
+
+      <!-- Shown while waiting for first data -->
+      <div class="connecting" id="connecting">
+        <div class="spinner"></div>
+        <div class="connecting-text">Waiting for feed...</div>
+      </div>
+
+      <!-- Hidden until first price arrives -->
+      <div class="price-row" id="price-row" style="display:none;">
+        <span class="currency">$</span>
+        <div class="price" id="price">—</div>
+        <span class="price-unit">cnts/bu</span>
+      </div>
+    </div>
+
+    <div id="error-msg" class="error-msg" style="display:none;"></div>
+
+
+    <!-- Market Sessions -->
+    <div class="sessions">
+      <div class="sessions-title">CBOT Trading Sessions (GMT-3)</div>
+      <div class="session-row" id="overnight-row">
+        <div>
+          <div class="session-name">🌙 Overnight Session</div>
+          <div class="session-hours">Sun–Fri · 10:00 PM – 10:45 AM GMT-3</div>
+        </div>
+        <div class="session-right">
+          <div class="session-badge closed" id="overnight-badge">Closed</div>
+          <div class="session-timer" id="overnight-timer">—</div>
+        </div>
+      </div>
+      <div class="session-row" id="day-row">
+        <div>
+          <div class="session-name">☀️ Day Session</div>
+          <div class="session-hours">Mon–Fri · 11:30 AM – 4:20 PM GMT-3</div>
+        </div>
+        <div class="session-right">
+          <div class="session-badge closed" id="day-badge">Closed</div>
+          <div class="session-timer" id="day-timer">—</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="status-bar">
+      <span class="status-text" id="status-text">Connecting to feed...</span>
+      <span class="timestamp" id="timestamp">—</span>
+    </div>
+
+  </div>
+
+  <div class="footer">⚠ Confidential · Internal Use Only · Unauthorized distribution may be penalized</div>
+</div>
+
+<script>
+  const FIREBASE_URL = 'https://soybean-feed-default-rtdb.firebaseio.com/price.json';
+  const INTERVAL     = 1000;
+
+  let lastPrice     = null;
+  let firstDataSeen = false;
+
+  async function fetchPrice() {
+    try {
+      const res  = await fetch(FIREBASE_URL + '?t=' + Date.now()); // cache-bust
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+
+      if (!data || data.value === undefined) {
+        // No data pushed yet
+        document.getElementById('status-text').textContent = 'Waiting for sender to connect...';
+        document.getElementById('live-dot').className = 'live-dot off';
+        document.getElementById('live-label').textContent = 'Waiting';
+        return;
+      }
+
+      clearError();
+
+      const num = parseFloat(data.value);
+      if (isNaN(num)) { showError('Invalid data received from feed.'); return; }
+
+      // First data: hide spinner, show price
+      if (!firstDataSeen) {
+        document.getElementById('connecting').style.display = 'none';
+        document.getElementById('price-row').style.display = 'flex';
+        firstDataSeen = true;
+      }
+
+      // Flash on change
+      const priceEl = document.getElementById('price');
+      if (lastPrice !== null && num !== lastPrice) {
+        const dir = num > lastPrice ? 'flash-up' : 'flash-down';
+        priceEl.classList.add(dir);
+        setTimeout(() => priceEl.classList.remove(dir), 600);
+      }
+      lastPrice = num;
+
+      priceEl.textContent = num.toFixed(2);
+
+      document.getElementById('live-dot').className = 'live-dot';
+      document.getElementById('live-label').textContent = 'Live';
+      document.getElementById('status-text').textContent = 'Auto-refreshing every 1s';
+      document.getElementById('timestamp').textContent =
+        new Date().toLocaleTimeString('en-US', { hour12: false });
+
+    } catch(e) {
+      showError('Cannot reach feed. Check your internet connection.\n' + e.message);
+      document.getElementById('live-dot').className = 'live-dot off';
+      document.getElementById('live-label').textContent = 'Offline';
+    }
+  }
+
+  function showError(msg) {
+    document.getElementById('error-msg').style.display = 'block';
+    document.getElementById('error-msg').textContent = msg;
+    document.getElementById('status-text').textContent = 'Connection error';
+  }
+  function clearError() {
+    document.getElementById('error-msg').style.display = 'none';
+  }
+
+  // Start polling immediately
+  fetchPrice();
+  setInterval(fetchPrice, INTERVAL);
+
+  // ── Market Sessions ──────────────────────────────────────────
+  function updateSessions() {
+    // Get current time in Chicago (GMT-3 = America/Sao_Paulo)
+    const now = new Date();
+    const ct  = new Date(now.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+    const day = ct.getDay(); // 0=Sun,1=Mon...6=Sat
+    const h   = ct.getHours();
+    const m   = ct.getMinutes();
+    const min = h * 60 + m; // minutes since midnight GMT-3
+
+    // Overnight: Sun 19:00 – Mon 07:45, Mon–Thu 19:00 – next day 07:45
+    // Day:       Mon–Fri 08:30 – 13:20
+    // Break:     Mon–Thu 07:45 – 08:30 (15 min break), Fri session closes 13:20 and no overnight reopens until Sun 19:00
+
+    const DAY_OPEN  = 11 * 60 + 30;  // 11:30 GMT-3
+    const DAY_CLOSE = 16 * 60 + 20;  // 16:20 GMT-3
+    const ON_OPEN   = 22 * 60 + 0;   // 22:00 GMT-3
+    const ON_CLOSE  = 10 * 60 + 45;  // 10:45 GMT-3
+
+    let dayOpen = false, overnightOpen = false;
+
+    // Day session: Mon(1)–Fri(5), 08:30–13:20
+    if (day >= 1 && day <= 5 && min >= DAY_OPEN && min < DAY_CLOSE) {
+      dayOpen = true;
+    }
+
+    // Overnight: opens 19:00, Mon–Thu and Sun
+    // After 19:00: Sun(0),Mon(1),Tue(2),Wed(3),Thu(4)
+    // Before 07:45: Mon(1),Tue(2),Wed(3),Fri(5) — i.e. day after overnight opens
+    if ((day >= 0 && day <= 4) && min >= ON_OPEN) {
+      overnightOpen = true;
+    }
+    if ((day >= 1 && day <= 5) && min < ON_CLOSE) {
+      overnightOpen = true;
+    }
+
+    function pad(n) { return String(n).padStart(2,'0'); }
+
+    function formatCountdown(targetMin) {
+      // targetMin = minutes from midnight when next event happens
+      let diff = targetMin - min;
+      if (diff < 0) diff += 24 * 60;
+      const hh = Math.floor(diff / 60);
+      const mm = diff % 60;
+      return `${pad(hh)}h ${pad(mm)}m`;
+    }
+
+    function formatCountdownSec(targetMin) {
+      const now2  = new Date(now.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+      const secs  = now2.getSeconds();
+      let diff    = (targetMin - min) * 60 - secs;
+      if (diff < 0) diff += 24 * 3600;
+      const hh = Math.floor(diff / 3600);
+      const mm = Math.floor((diff % 3600) / 60);
+      const ss = diff % 60;
+      return `${pad(hh)}:${pad(mm)}:${pad(ss)}`;
+    }
+
+    // Update Day session UI
+    const dayBadge = document.getElementById('day-badge');
+    const dayTimer = document.getElementById('day-timer');
+    if (dayOpen) {
+      dayBadge.className = 'session-badge open';
+      dayBadge.textContent = 'Open';
+      dayTimer.className = 'session-timer active';
+      dayTimer.textContent = 'Closes in ' + formatCountdownSec(DAY_CLOSE);
+    } else {
+      dayBadge.className = 'session-badge closed';
+      dayBadge.textContent = 'Closed';
+      dayTimer.className = 'session-timer';
+      // Next open: if before 08:30 on a weekday
+      if (day >= 1 && day <= 5 && min < DAY_OPEN) {
+        dayTimer.textContent = 'Opens in ' + formatCountdownSec(DAY_OPEN);
+      } else if (day === 0 || (day === 6)) {
+        dayTimer.textContent = 'Opens Monday 11:30 GMT-3';
+      } else {
+        dayTimer.textContent = 'Opens tomorrow 11:30 GMT-3';
+      }
+    }
+
+    // Update Overnight session UI
+    const onBadge = document.getElementById('overnight-badge');
+    const onTimer = document.getElementById('overnight-timer');
+    if (overnightOpen) {
+      onBadge.className = 'session-badge open';
+      onBadge.textContent = 'Open';
+      onTimer.className = 'session-timer active';
+      // Closes at 07:45 next day
+      const closeMin = ON_CLOSE + (min >= ON_OPEN ? 24 * 60 : 0);
+      onTimer.textContent = 'Closes in ' + formatCountdownSec(ON_CLOSE + (min >= ON_OPEN ? 24*60 : 0));
+      // Simplify: just show closes at 07:45
+      const now2 = new Date(now.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+      const ss   = now2.getSeconds();
+      let diff   = (ON_CLOSE - min) * 60 - ss;
+      if (diff < 0) diff += 24 * 3600;
+      const hh2  = Math.floor(diff/3600), mm2 = Math.floor((diff%3600)/60), ss2 = diff%60;
+      onTimer.textContent = 'Closes in ' + pad(hh2)+':'+pad(mm2)+':'+pad(ss2);
+    } else {
+      onBadge.className = 'session-badge closed';
+      onBadge.textContent = 'Closed';
+      onTimer.className = 'session-timer';
+      if (day === 5 && min >= DAY_CLOSE) {
+        onTimer.textContent = 'Opens Sunday 22:00 GMT-3';
+      } else if (day === 6) {
+        onTimer.textContent = 'Opens Sunday 22:00 GMT-3';
+      } else {
+        const now2 = new Date(now.toLocaleString('en-US',{timeZone:'America/Sao_Paulo'}));
+        const ss   = now2.getSeconds();
+        let diff   = (ON_OPEN - min)*60 - ss;
+        if (diff < 0) diff += 24*3600;
+        const hh2  = Math.floor(diff/3600), mm2=Math.floor((diff%3600)/60), ss2=diff%60;
+        onTimer.textContent = 'Opens in ' + pad(hh2)+':'+pad(mm2)+':'+pad(ss2);
+      }
+    }
+  }
+
+  updateSessions();
+  setInterval(updateSessions, 1000);
+
+</script>
+</body>
+</html>
