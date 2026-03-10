@@ -21,7 +21,7 @@
     background: var(--main-dk); color: var(--white);
     font-family: 'Barlow', sans-serif;
     min-height: 100vh; display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
+    align-items: center; justify-content: flex-start;
     padding: 20px 16px 32px;
   }
   .bg {
@@ -47,7 +47,7 @@
   .wrapper {
     position:relative; z-index:1;
     display:flex; flex-direction:column; align-items:center; gap:14px;
-    width:100%; max-width:620px;
+    width:100%; max-width:680px;
   }
 
   /* Header */
@@ -66,20 +66,33 @@
     flex:1; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.1);
     border-radius:14px; overflow:hidden;
     -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px);
+    cursor:pointer; transition:border-color .2s, box-shadow .2s, transform .15s;
+    user-select:none;
   }
+  .contract-card:hover { border-color:rgba(163,206,58,0.3); transform:translateY(-1px); }
+
+
   .c-header {
     background:linear-gradient(135deg,var(--main) 0%,rgba(55,50,130,0.8) 100%);
     border-bottom:1px solid rgba(163,206,58,0.2);
     padding:13px 16px 11px; display:flex; align-items:flex-start; justify-content:space-between;
+    transition:border-bottom-color .2s;
   }
-  .c-label  { font-family:'Barlow Condensed',sans-serif; font-weight:300; font-size:.6rem; letter-spacing:.2em; color:var(--muted); text-transform:uppercase; margin-bottom:3px; }
   .c-name   { font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:1.15rem; letter-spacing:.06em; text-transform:uppercase; }
+
+  .c-symbol-wrap { display:flex; flex-direction:column; align-items:flex-end; gap:5px; }
   .c-symbol { font-family:'Barlow Condensed',sans-serif; font-size:.68rem; letter-spacing:.12em; color:var(--white); font-weight:700; background:rgba(255,255,255,0.12); border:1px solid rgba(255,255,255,0.22); border-radius:4px; padding:3px 8px; }
+  .chart-hint-link {
+    font-size:.58rem; letter-spacing:.1em; color:var(--tert); text-transform:uppercase;
+    text-decoration:none; font-family:'Barlow Condensed',sans-serif; font-weight:600;
+    opacity:1; transition:color .2s;
+    display:flex; align-items:center; gap:4px;
+  }
+  .chart-hint-link:hover { color:var(--white); }
 
   .c-body { padding:13px 16px 15px; display:flex; flex-direction:column; gap:8px; }
   .c-price-label { font-size:.56rem; letter-spacing:.18em; color:var(--muted); text-transform:uppercase; }
 
-  /* Spinner */
   .connecting { display:flex; flex-direction:column; align-items:center; gap:8px; padding:18px 0; }
   .spinner { width:26px; height:26px; border:2px solid rgba(163,206,58,0.2); border-top-color:var(--tert); border-radius:50%; animation:spin .8s linear infinite; }
   @-webkit-keyframes spin { to{transform:rotate(360deg)} }
@@ -107,6 +120,8 @@
   .c-hl-val.negative { color:var(--red); }
   .c-hl-val.neutral  { color:var(--muted); }
 
+
+
   /* Sessions */
   .sessions-card {
     width:100%; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.1);
@@ -126,7 +141,6 @@
   .sess-timer { font-size:.58rem; color:var(--muted); font-variant-numeric:tabular-nums; }
   .sess-timer.active { color:var(--tert); }
 
-  /* Bottom row */
   .bottom-row { width:100%; display:flex; align-items:center; justify-content:space-between; opacity:0; animation:fadeUp .6s ease .25s forwards; }
   .status-text { font-size:.62rem; color:var(--muted); letter-spacing:.1em; text-transform:uppercase; }
   .timestamp   { font-size:.62rem; color:var(--muted); font-variant-numeric:tabular-nums; }
@@ -144,7 +158,7 @@
 <div class="wrapper">
 
   <div class="page-header">
-    <div><div class="brand-name">Market Dashboard</div><div class="brand-sub">Soybean Futures</div></div>
+    <div><div class="brand-name">Market Dashboard</div><div class="brand-sub">Live Feed · Soybean Futures</div></div>
     <div class="live-badge">
       <div class="live-dot off" id="live-dot"></div>
       <span id="live-label">Connecting...</span>
@@ -154,11 +168,13 @@
   <!-- ── Two contracts ── -->
   <div class="contracts-row">
 
-    <!-- Contract 1 -->
-    <div class="contract-card">
+    <div class="contract-card" id="card-c1">
       <div class="c-header">
-        <div><div class="c-label">Contract 1</div><div class="c-name">Soybean</div></div>
-        <div class="c-symbol" id="c1-sym">—</div>
+        <div class="c-name">Soybean</div>
+        <div class="c-symbol-wrap">
+          <div class="c-symbol" id="c1-sym">—</div>
+          <a class="chart-hint-link" id="btn-c1" href="https://www.tradingview.com/chart/?symbol=CBOT%3AZS1!" target="_blank" rel="noopener">📈 View Chart</a>
+        </div>
       </div>
       <div class="c-body">
         <div class="c-price-label">Last Price</div>
@@ -178,11 +194,13 @@
       </div>
     </div>
 
-    <!-- Contract 2 -->
-    <div class="contract-card">
+    <div class="contract-card" id="card-c2">
       <div class="c-header">
-        <div><div class="c-label">Contract 2</div><div class="c-name">Soybean</div></div>
-        <div class="c-symbol" id="c2-sym">—</div>
+        <div class="c-name">Soybean</div>
+        <div class="c-symbol-wrap">
+          <div class="c-symbol" id="c2-sym">—</div>
+          <a class="chart-hint-link" id="btn-c2" href="https://www.tradingview.com/chart/?symbol=CBOT%3AZS2!" target="_blank" rel="noopener">📈 View Chart</a>
+        </div>
       </div>
       <div class="c-body">
         <div class="c-price-label">Last Price</div>
@@ -203,6 +221,8 @@
     </div>
 
   </div>
+
+
 
   <div id="err-banner" class="error-banner" style="display:none"></div>
 
@@ -243,11 +263,13 @@
 
   let last1 = null, last2 = null;
   let seen1 = false, seen2 = false;
-  let sessCfg = {
-    overnight: { open:'22:00', close:'10:45', days:[0,1,2,3,4] },
-    day:       { open:'11:30', close:'16:20', days:[1,2,3,4,5]  }
-  };
+  let sym1 = '', sym2 = '';
 
+  function updateChartButtons(s1, s2) {
+    // Links are static (ZS1!/ZS2!), nothing dynamic needed
+  }
+
+  // ── Price fetch ───────────────────────────────────────────
   function applyChg(id, val) {
     const el = document.getElementById(id);
     if (isNaN(val)) { el.textContent='—'; el.className='c-hl-val neutral'; return; }
@@ -280,7 +302,9 @@
 
       // Contract 1
       const c1 = data.c1;
-      if (!seen1) { document.getElementById('c1-spin').style.display='none'; document.getElementById('c1-data').style.display='flex'; seen1=true; }
+      const newSym1 = c1.symbol || sym1;
+      if (newSym1 !== sym1) { sym1 = newSym1; updateChartButtons(sym1, null); }
+      if (!seen1) { document.getElementById('c1-spin').style.display='none'; document.getElementById('c1-data').style.display='flex'; seen1=true; updateChartButtons(sym1, sym2); }
       document.getElementById('c1-sym').textContent   = c1.symbol || '—';
       const p1 = parseFloat(c1.value);
       flash('c1-price', last1, p1); last1 = p1;
@@ -291,6 +315,8 @@
 
       // Contract 2
       const c2 = data.c2;
+      const newSym2 = c2.symbol || sym2;
+      if (newSym2 !== sym2) { sym2 = newSym2; updateChartButtons(null, sym2); }
       if (!seen2) { document.getElementById('c2-spin').style.display='none'; document.getElementById('c2-data').style.display='flex'; seen2=true; }
       document.getElementById('c2-sym').textContent   = c2.symbol || '—';
       const p2 = parseFloat(c2.value);
@@ -300,17 +326,23 @@
       document.getElementById('c2-low').textContent   = isNaN(+c2.low)  ? '—' : (+c2.low).toFixed(2);
       applyChg('c2-chg', parseFloat(c2.netChange));
 
-      document.getElementById('live-dot').className   = 'live-dot';
+      document.getElementById('live-dot').className    = 'live-dot';
       document.getElementById('live-label').textContent = 'Live';
       document.getElementById('status-text').textContent = 'Auto-refreshing every 1s';
       document.getElementById('timestamp').textContent   = new Date().toLocaleTimeString('en-US',{hour12:false});
 
     } catch(e) {
       showErr('Cannot reach feed: ' + e.message);
-      document.getElementById('live-dot').className   = 'live-dot off';
+      document.getElementById('live-dot').className    = 'live-dot off';
       document.getElementById('live-label').textContent = 'Offline';
     }
   }
+
+  // ── Settings fetch ────────────────────────────────────────
+  let sessCfg = {
+    overnight: { open:'22:00', close:'10:45', days:[0,1,2,3,4] },
+    day:       { open:'11:30', close:'16:20', days:[1,2,3,4,5]  }
+  };
 
   async function fetchSettings() {
     try {
@@ -338,16 +370,16 @@
     const curMin = h*60+m, curSec = h*3600+m*60+s;
 
     function upd(key, bId, tId) {
-      const cfg    = sessCfg[key];
-      const oMin   = toMin(cfg.open), cMin = toMin(cfg.close);
-      const act    = cfg.days, cross = cMin < oMin;
-      let open = false;
-      if (!cross) { open = act.includes(day) && curMin >= oMin && curMin < cMin; }
-      else { const prev=(day+6)%7; open=(act.includes(day)&&curMin>=oMin)||(act.includes(prev)&&curMin<cMin); }
+      const cfg  = sessCfg[key];
+      const oMin = toMin(cfg.open), cMin = toMin(cfg.close);
+      const act  = cfg.days, cross = cMin < oMin;
+      let isOpen = false;
+      if (!cross) { isOpen = act.includes(day) && curMin >= oMin && curMin < cMin; }
+      else { const prev=(day+6)%7; isOpen=(act.includes(day)&&curMin>=oMin)||(act.includes(prev)&&curMin<cMin); }
 
       const badge = document.getElementById(bId);
       const timer = document.getElementById(tId);
-      if (open) {
+      if (isOpen) {
         badge.className='sess-badge open'; badge.textContent='Open';
         timer.className='sess-timer active';
         let d=cMin*60-curSec; if(d<0)d+=86400;
@@ -369,6 +401,7 @@
   function showErr(m) { document.getElementById('err-banner').style.display='block'; document.getElementById('err-banner').textContent=m; document.getElementById('status-text').textContent='Connection error'; }
   function clearErr() { document.getElementById('err-banner').style.display='none'; }
 
+  // ── Init ─────────────────────────────────────────────────
   updateSessLabels();
   fetchSettings();
   fetchPrice();
