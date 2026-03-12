@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Soybean Futures — Live Price</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;600;700;800&family=Barlow:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --main:    #27245F;
+    --main-dk: #1a1840;
+    --sec:     #1BB24A;
+    --sec-dim: #128336;
+    --tert:    #A3CE3A;
+    --white:   #ffffff;
+    --muted:   #8b8fb8;
+    --red:     #e85a4b;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background: var(--main-dk); color: var(--white);
+    font-family: 'Barlow', sans-serif;
+    min-height: 100vh; display: flex; flex-direction: column;
+    align-items: center; justify-content: flex-start;
+    padding: 20px 16px 32px;
+  }
+  .bg {
+    position:fixed; inset:0; z-index:0;
+    background:
+      radial-gradient(ellipse 80% 60% at 10% 20%, rgba(27,178,74,0.12) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 80% at 90% 80%, rgba(163,206,58,0.08) 0%, transparent 60%),
+      radial-gradient(ellipse 100% 100% at 50% 50%, var(--main) 0%, var(--main-dk) 100%);
+  }
+  .bg::after {
+    content:''; position:absolute; inset:0;
+    background-image: linear-gradient(rgba(163,206,58,0.04) 1px,transparent 1px),
+                      linear-gradient(90deg,rgba(163,206,58,0.04) 1px,transparent 1px);
+    background-size: 48px 48px;
+  }
+  .top-bar {
+    position:fixed; top:0; left:0; right:0; height:3px;
+    background:linear-gradient(90deg,var(--sec),var(--tert),var(--sec));
+    background-size:200% 100%; animation:shimmer 3s linear infinite; z-index:10;
+  }
+  @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
+  .wrapper {
+    position:relative; z-index:1;
+    display:flex; flex-direction:column; align-items:center; gap:14px;
+    width:100%; max-width:680px;
+  }
+
+  /* Header */
+  .page-header { width:100%; display:flex; align-items:center; justify-content:space-between; opacity:0; animation:fadeUp .6s ease forwards; }
+  .brand-name { font-family:'Barlow Condensed',sans-serif; font-weight:800; font-size:1.1rem; letter-spacing:.2em; text-transform:uppercase; }
+  .brand-sub  { font-size:.65rem; letter-spacing:.2em; color:var(--muted); text-transform:uppercase; margin-top:2px; }
+  .live-badge { display:flex; align-items:center; gap:7px; background:rgba(27,178,74,0.12); border:1px solid rgba(27,178,74,0.3); border-radius:20px; padding:5px 14px; font-size:.65rem; letter-spacing:.15em; color:var(--sec); text-transform:uppercase; font-weight:500; }
+  .live-dot   { width:6px; height:6px; border-radius:50%; background:var(--sec); animation:pulse 1.5s infinite; }
+  .live-dot.off { background:var(--muted); animation:none; }
+  @keyframes pulse { 0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(27,178,74,.5)}50%{opacity:.7;box-shadow:0 0 0 5px rgba(27,178,74,0)} }
+
+  /* Two contract cards */
+  .contracts-row { width:100%; display:flex; gap:12px; opacity:0; animation:fadeUp .6s ease .1s forwards; }
+
+  .contract-card {
+    flex:1; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.1);
+    border-radius:14px; overflow:hidden;
+    -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px);
+    cursor:pointer; transition:border-color .2s, box-shadow .2s, transform .15s;
+    user-select:none;
+  }
+  .contract-card:hover { border-color:rgba(163,206,58,0.3); transform:translateY(-1px); }
+
+
+  .c-header {
+    background:linear-gradient(135deg,var(--main) 0%,rgba(55,50,130,0.8) 100%);
+    border-bottom:1px solid rgba(163,206,58,0.2);
+    padding:13px 16px 11px; display:flex; align-items:flex-start; justify-content:space-between;
+    transition:border-bottom-color .2s;
+  }
+  .c-name   { font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:1.15rem; letter-spacing:.06em; text-transform:uppercase; }
+
+  .c-symbol-wrap { display:flex; flex-direction:column; align-items:flex-end; gap:5px; }
+  .c-symbol { font-family:'Barlow Condensed',sans-serif; font-size:.68rem; letter-spacing:.12em; color:var(--white); font-weight:700; background:rgba(255,255,255,0.12); border:1px solid rgba(255,255,255,0.22); border-radius:4px; padding:3px 8px; }
+  .chart-hint-link {
+    font-size:.58rem; letter-spacing:.1em; color:var(--tert); text-transform:uppercase;
+    text-decoration:none; font-family:'Barlow Condensed',sans-serif; font-weight:600;
+    opacity:1; transition:color .2s;
+    display:flex; align-items:center; gap:4px;
+  }
+  .chart-hint-link:hover { color:var(--white); }
+
+  .c-body { padding:13px 16px 15px; display:flex; flex-direction:column; gap:8px; }
+  .c-price-label { font-size:.56rem; letter-spacing:.18em; color:var(--muted); text-transform:uppercase; }
+
+  .connecting { display:flex; flex-direction:column; align-items:center; gap:8px; padding:18px 0; }
+  .spinner { width:26px; height:26px; border:2px solid rgba(163,206,58,0.2); border-top-color:var(--tert); border-radius:50%; animation:spin .8s linear infinite; }
+  @-webkit-keyframes spin { to{transform:rotate(360deg)} }
+  @keyframes spin { to{transform:rotate(360deg)} }
+  .connecting-text { font-size:.6rem; color:var(--muted); letter-spacing:.12em; text-transform:uppercase; }
+
+  .c-price-row { display:flex; align-items:baseline; gap:4px; }
+  .c-curr { font-family:'Barlow Condensed',sans-serif; font-size:1rem; font-weight:300; color:var(--muted); }
+  .c-price {
+    font-family:'Barlow Condensed',sans-serif; font-weight:800; font-size:2.6rem;
+    line-height:1; color:var(--tert); text-shadow:0 0 28px rgba(163,206,58,.25);
+    transition:color .3s,text-shadow .3s; letter-spacing:-.01em;
+  }
+  .c-price.flash-up   { color:var(--sec); text-shadow:0 0 50px rgba(27,178,74,.8); }
+  .c-price.flash-down { color:var(--red); text-shadow:0 0 50px rgba(232,90,75,.8); }
+  .c-unit { font-size:.55rem; color:var(--muted); letter-spacing:.08em; margin-bottom:3px; }
+
+  .c-hl { display:grid; grid-template-columns:1fr 1fr; gap:5px; }
+  .c-hl-box { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:6px; padding:6px 9px; display:flex; flex-direction:column; gap:2px; }
+  .c-hl-lbl { font-size:.5rem; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); }
+  .c-hl-val { font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:1.05rem; transition:color .3s; }
+  .c-hl-val.high     { color:var(--sec); }
+  .c-hl-val.low      { color:var(--red); }
+  .c-hl-val.positive { color:var(--sec); }
+  .c-hl-val.negative { color:var(--red); }
+  .c-hl-val.neutral  { color:var(--muted); }
+
+
+
+  /* Sessions */
+  .sessions-card {
+    width:100%; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.1);
+    border-radius:14px; overflow:hidden;
+    -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px);
+    opacity:0; animation:fadeUp .6s ease .2s forwards;
+  }
+  .sessions { padding:15px 20px 17px; display:flex; flex-direction:column; gap:9px; }
+  .sess-title { font-size:.6rem; letter-spacing:.2em; color:var(--muted); text-transform:uppercase; margin-bottom:2px; }
+  .sess-row { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:9px 13px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:8px; }
+  .sess-name  { font-family:'Barlow Condensed',sans-serif; font-weight:600; font-size:.8rem; letter-spacing:.1em; text-transform:uppercase; }
+  .sess-hours { font-size:.58rem; color:var(--muted); margin-top:2px; }
+  .sess-right { display:flex; flex-direction:column; align-items:flex-end; gap:3px; }
+  .sess-badge { font-size:.56rem; font-weight:700; letter-spacing:.12em; text-transform:uppercase; padding:2px 9px; border-radius:20px; }
+  .sess-badge.open   { background:rgba(27,178,74,0.15); border:1px solid rgba(27,178,74,0.35); color:var(--sec); }
+  .sess-badge.closed { background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:var(--muted); }
+  .sess-timer { font-size:.58rem; color:var(--muted); font-variant-numeric:tabular-nums; }
+  .sess-timer.active { color:var(--tert); }
+
+  .bottom-row { width:100%; display:flex; align-items:center; justify-content:space-between; opacity:0; animation:fadeUp .6s ease .25s forwards; }
+  .status-text { font-size:.62rem; color:var(--muted); letter-spacing:.1em; text-transform:uppercase; }
+  .timestamp   { font-size:.62rem; color:var(--muted); font-variant-numeric:tabular-nums; }
+
+  .error-banner { width:100%; font-size:.68rem; color:var(--red); text-align:center; padding:8px 14px; background:rgba(232,90,75,0.08); border:1px solid rgba(232,90,75,0.2); border-radius:8px; }
+  .footer { font-size:.58rem; color:rgba(255,255,255,0.14); letter-spacing:.14em; text-transform:uppercase; opacity:0; animation:fadeUp .6s ease .3s forwards; }
+
+  @keyframes fadeUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+
+  /* ── Language switcher ── */
+  .brand-live {
+    display:flex; align-items:center; gap:12px;
+  }
+  .lang-switcher {
+    display:flex; gap:6px; align-items:center;
+  }
+  .lang-btn {
+    background:none; border:1px solid transparent; cursor:pointer;
+    padding:2px 3px; border-radius:4px;
+    opacity:.4; transition:opacity .2s, transform .15s, border-color .2s;
+    filter:grayscale(40%); line-height:0;
+  }
+  .lang-btn img { display:block; width:24px; height:16px; border-radius:2px; object-fit:cover; }
+  .lang-btn:hover  { opacity:.75; transform:scale(1.12); }
+  .lang-btn.active { opacity:1; filter:none; transform:scale(1.08); border-color:rgba(163,206,58,0.5); }
+
+</style>
+</head>
+<body>
+<div class="top-bar"></div>
+<div class="bg"></div>
+
+<div class="wrapper">
+
+  <div class="page-header">
+    <div class="brand-live">
+      <div><div class="brand-name" data-i18n="brand_name">Market Dashboard</div><div class="brand-sub" data-i18n="brand_sub">Live Feed · Soybean Futures</div></div>
+      <div class="live-badge">
+        <div class="live-dot off" id="live-dot"></div>
+        <span id="live-label">Connecting...</span>
+      </div>
+    </div>
+    <div class="lang-switcher">
+      <button class="lang-btn active" id="lang-en" onclick="setLang('en')" title="English"><img src="https://flagcdn.com/w40/us.png" alt="EN"></button>
+      <button class="lang-btn"        id="lang-es" onclick="setLang('es')" title="Español"><img src="https://flagcdn.com/w40/es.png" alt="ES"></button>
+      <button class="lang-btn"        id="lang-pt" onclick="setLang('pt')" title="Português"><img src="https://flagcdn.com/w40/br.png" alt="PT"></button>
+    </div>
+  </div>
+
+  <!-- ── Two contracts ── -->
+  <div class="contracts-row">
+
+    <div class="contract-card" id="card-c1">
+      <div class="c-header">
+        <div class="c-name" data-i18n="commodity">Soybean</div>
+        <div class="c-symbol-wrap">
+          <div class="c-symbol" id="c1-sym">—</div>
+          <a class="chart-hint-link" id="btn-c1" href="https://www.tradingview.com/chart/?symbol=CBOT%3AZS1!" target="_blank" rel="noopener">📈 <span data-i18n="view_chart">View Chart</span></a>
+        </div>
+      </div>
+      <div class="c-body">
+        <div class="c-price-label" data-i18n="last_price">Last Price</div>
+        <div class="connecting" id="c1-spin"><div class="spinner"></div><div class="connecting-text" data-i18n="waiting">Waiting...</div></div>
+        <div id="c1-data" style="display:none;flex-direction:column;gap:8px">
+          <div class="c-price-row">
+            <span class="c-curr">$</span>
+            <div class="c-price" id="c1-price">—</div>
+            <span class="c-unit">cnts/bu</span>
+          </div>
+          <div class="c-hl">
+            <div class="c-hl-box"><div class="c-hl-lbl">▲ <span data-i18n="high">High</span></div><div class="c-hl-val high"    id="c1-high">—</div></div>
+            <div class="c-hl-box"><div class="c-hl-lbl">▼ <span data-i18n="low">Low</span></div> <div class="c-hl-val low"     id="c1-low">—</div></div>
+            <div class="c-hl-box" style="grid-column:span 2"><div class="c-hl-lbl">± <span data-i18n="net_chg">Net Chg</span></div><div class="c-hl-val neutral" id="c1-chg">—</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="contract-card" id="card-c2">
+      <div class="c-header">
+        <div class="c-name" data-i18n="commodity">Soybean</div>
+        <div class="c-symbol-wrap">
+          <div class="c-symbol" id="c2-sym">—</div>
+          <a class="chart-hint-link" id="btn-c2" href="https://www.tradingview.com/chart/?symbol=CBOT%3AZS2!" target="_blank" rel="noopener">📈 <span data-i18n="view_chart">View Chart</span></a>
+        </div>
+      </div>
+      <div class="c-body">
+        <div class="c-price-label" data-i18n="last_price">Last Price</div>
+        <div class="connecting" id="c2-spin"><div class="spinner"></div><div class="connecting-text" data-i18n="waiting">Waiting...</div></div>
+        <div id="c2-data" style="display:none;flex-direction:column;gap:8px">
+          <div class="c-price-row">
+            <span class="c-curr">$</span>
+            <div class="c-price" id="c2-price">—</div>
+            <span class="c-unit">cnts/bu</span>
+          </div>
+          <div class="c-hl">
+            <div class="c-hl-box"><div class="c-hl-lbl">▲ <span data-i18n="high">High</span></div><div class="c-hl-val high"    id="c2-high">—</div></div>
+            <div class="c-hl-box"><div class="c-hl-lbl">▼ <span data-i18n="low">Low</span></div> <div class="c-hl-val low"     id="c2-low">—</div></div>
+            <div class="c-hl-box" style="grid-column:span 2"><div class="c-hl-lbl">± <span data-i18n="net_chg">Net Chg</span></div><div class="c-hl-val neutral" id="c2-chg">—</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+
+
+  <div id="err-banner" class="error-banner" style="display:none"></div>
+
+  <!-- ── Sessions ── -->
+  <div class="sessions-card">
+    <div class="sessions">
+      <div class="sess-title" data-i18n="sessions_title">CBOT Trading Sessions (GMT-3)</div>
+      <div class="sess-row">
+        <div><div class="sess-name">🌙 <span data-i18n="overnight">Overnight Session</span></div><div class="sess-hours" id="on-hours">—</div></div>
+        <div class="sess-right">
+          <div class="sess-badge closed" id="on-badge">Closed</div>
+          <div class="sess-timer"        id="on-timer">—</div>
+        </div>
+      </div>
+      <div class="sess-row">
+        <div><div class="sess-name">☀️ <span data-i18n="day_session">Day Session</span></div><div class="sess-hours" id="day-hours">—</div></div>
+        <div class="sess-right">
+          <div class="sess-badge closed" id="day-badge">Closed</div>
+          <div class="sess-timer"        id="day-timer">—</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="bottom-row">
+    <span class="status-text" id="status-text">Connecting to feed...</span>
+    <span class="timestamp"   id="timestamp">—</span>
+  </div>
+
+  <div class="footer" data-i18n="footer">⚠ Confidential · Internal Use Only · Unauthorized distribution may be penalized</div>
+
+</div>
+
+<script>
+  const FB_PRICE    = 'https://soybean-feed-default-rtdb.firebaseio.com/price.json';
+  const FB_SETTINGS = 'https://soybean-feed-default-rtdb.firebaseio.com/settings.json';
+  const INTERVAL    = 1000;
+
+  let last1 = null, last2 = null;
+  let seen1 = false, seen2 = false;
+  let sym1 = '', sym2 = '';
+
+  function updateChartButtons(s1, s2) {
+    // Links are static (ZS1!/ZS2!), nothing dynamic needed
+  }
+
+
+  // ── Price fetch ───────────────────────────────────────────
+  function applyChg(id, val, price) {
+    const el = document.getElementById(id);
+    if (isNaN(val)) { el.textContent='—'; el.className='c-hl-val neutral'; return; }
+    const sign = val >= 0 ? '+' : '';
+    let txt = sign + val.toFixed(2);
+    if (!isNaN(price) && price !== 0) {
+      const pct = (val / (price - val)) * 100;
+      txt += ' (' + (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%)';
+    }
+    el.textContent = txt;
+    el.className   = 'c-hl-val ' + (val > 0 ? 'positive' : val < 0 ? 'negative' : 'neutral');
+  }
+
+  function flash(id, prev, curr) {
+    if (prev !== null && curr !== prev) {
+      const cls = curr > prev ? 'flash-up' : 'flash-down';
+      const el  = document.getElementById(id);
+      el.classList.add(cls);
+      setTimeout(() => el.classList.remove(cls), 600);
+    }
+  }
+
+  async function fetchPrice() {
+    try {
+      const res  = await fetch(FB_PRICE + '?t=' + Date.now(), { cache:'no-store', mode:'cors' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+
+      if (!data || !data.c1) {
+        document.getElementById('status-text').dataset.state='waiting'; document.getElementById('status-text').textContent = t('status_waiting');
+        document.getElementById('live-dot').className = 'live-dot off';
+        document.getElementById('live-label').dataset.state='waiting'; document.getElementById('live-label').textContent = t('wait_label');
+        return;
+      }
+      clearErr();
+
+      // Contract 1
+      const c1 = data.c1;
+      const newSym1 = c1.symbol || sym1;
+      if (newSym1 !== sym1) { sym1 = newSym1; updateChartButtons(sym1, null); }
+      if (!seen1) { document.getElementById('c1-spin').style.display='none'; document.getElementById('c1-data').style.display='flex'; seen1=true; updateChartButtons(sym1, sym2); }
+      document.getElementById('c1-sym').textContent   = c1.symbol || '—';
+      const p1 = parseFloat(c1.value);
+      flash('c1-price', last1, p1); last1 = p1;
+      document.getElementById('c1-price').textContent = p1.toFixed(2);
+      document.getElementById('c1-high').textContent  = isNaN(+c1.high) ? '—' : (+c1.high).toFixed(2);
+      document.getElementById('c1-low').textContent   = isNaN(+c1.low)  ? '—' : (+c1.low).toFixed(2);
+      applyChg('c1-chg', parseFloat(c1.netChange), p1);
+
+      // Contract 2
+      const c2 = data.c2;
+      const newSym2 = c2.symbol || sym2;
+      if (newSym2 !== sym2) { sym2 = newSym2; updateChartButtons(null, sym2); }
+      if (!seen2) { document.getElementById('c2-spin').style.display='none'; document.getElementById('c2-data').style.display='flex'; seen2=true; }
+      document.getElementById('c2-sym').textContent   = c2.symbol || '—';
+      const p2 = parseFloat(c2.value);
+      flash('c2-price', last2, p2); last2 = p2;
+      document.getElementById('c2-price').textContent = p2.toFixed(2);
+      document.getElementById('c2-high').textContent  = isNaN(+c2.high) ? '—' : (+c2.high).toFixed(2);
+      document.getElementById('c2-low').textContent   = isNaN(+c2.low)  ? '—' : (+c2.low).toFixed(2);
+      applyChg('c2-chg', parseFloat(c2.netChange), p2);
+
+      document.getElementById('live-dot').className    = 'live-dot';
+      document.getElementById('live-label').dataset.state='live'; document.getElementById('live-label').textContent = t('live_label');
+      document.getElementById('status-text').dataset.state='live'; document.getElementById('status-text').textContent = t('status_live');
+      document.getElementById('timestamp').textContent   = new Date().toLocaleTimeString('en-US',{hour12:false});
+
+    } catch(e) {
+      showErr('Cannot reach feed: ' + e.message);
+      document.getElementById('live-dot').className    = 'live-dot off';
+      document.getElementById('live-label').dataset.state='offline'; document.getElementById('live-label').textContent = t('offline_label');
+    }
+  }
+
+  // ── Settings fetch ────────────────────────────────────────
+  let sessCfg = {
+    overnight: { open:'22:00', close:'10:45', days:[0,1,2,3,4] },
+    day:       { open:'11:30', close:'16:20', days:[1,2,3,4,5]  }
+  };
+
+  async function fetchSettings() {
+    try {
+      const res  = await fetch(FB_SETTINGS + '?t=' + Date.now(), { cache:'no-store', mode:'cors' });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data && data.overnight && data.day) { sessCfg = data; updateSessLabels(); }
+    } catch(e) {}
+  }
+
+  function updateSessLabels() {
+    const N = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    document.getElementById('on-hours').textContent  = sessCfg.overnight.days.map(d=>N[d]).join('–') + ' · ' + sessCfg.overnight.open + ' – ' + sessCfg.overnight.close + ' GMT-3';
+    document.getElementById('day-hours').textContent = sessCfg.day.days.map(d=>N[d]).join('–')       + ' · ' + sessCfg.day.open       + ' – ' + sessCfg.day.close       + ' GMT-3';
+  }
+
+  function toMin(t) { const [h,m]=t.split(':').map(Number); return h*60+m; }
+  function pad(n)   { return String(n).padStart(2,'0'); }
+  function cdStr(s) { if(s<0)s=0; return pad(~~(s/3600))+':'+pad(~~(s%3600/60))+':'+pad(s%60); }
+
+  function updateSessions() {
+    const local  = new Date(new Date().toLocaleString('en-US',{timeZone:'America/Sao_Paulo'}));
+    const day    = local.getDay();
+    const h=local.getHours(), m=local.getMinutes(), s=local.getSeconds();
+    const curMin = h*60+m, curSec = h*3600+m*60+s;
+
+    function upd(key, bId, tId) {
+      const cfg  = sessCfg[key];
+      const oMin = toMin(cfg.open), cMin = toMin(cfg.close);
+      const act  = cfg.days, cross = cMin < oMin;
+      let isOpen = false;
+      if (!cross) { isOpen = act.includes(day) && curMin >= oMin && curMin < cMin; }
+      else { const prev=(day+6)%7; isOpen=(act.includes(day)&&curMin>=oMin)||(act.includes(prev)&&curMin<cMin); }
+
+      const badge = document.getElementById(bId);
+      const timer = document.getElementById(tId);
+      if (isOpen) {
+        badge.className='sess-badge open'; badge.textContent=t('open_badge');
+        timer.className='sess-timer active';
+        let d=cMin*60-curSec; if(d<0)d+=86400;
+        timer.textContent=t('closes_in')+' '+cdStr(d);
+      } else {
+        badge.className='sess-badge closed'; badge.textContent=t('closed_badge');
+        timer.className='sess-timer';
+        for(let i=0;i<7;i++){
+          const cd=(day+i)%7;
+          if(act.includes(cd)){ let d=toMin(cfg.open)*60-curSec+i*86400; if(d<=0)continue; timer.textContent=t('opens_in')+' '+cdStr(d); return; }
+        }
+        timer.textContent='—';
+      }
+    }
+    upd('overnight','on-badge','on-timer');
+    upd('day','day-badge','day-timer');
+  }
+
+  function showErr(m) { document.getElementById('err-banner').style.display='block'; document.getElementById('err-banner').textContent=m; document.getElementById('status-text').dataset.state='error'; document.getElementById('status-text').textContent=t('status_error'); }
+  function clearErr() { document.getElementById('err-banner').style.display='none'; }
+
+
+  // ── i18n ─────────────────────────────────────────────────
+  const TRANSLATIONS = {
+    en: {
+      brand_name:      'Market Dashboard',
+      brand_sub:       'Live Feed · Soybean Futures',
+      commodity:       'Soybean',
+      view_chart:      'View Chart',
+      last_price:      'Last Price',
+      waiting:         'Waiting...',
+      high:            'High',
+      low:             'Low',
+      net_chg:         'Net Chg',
+      sessions_title:  'CBOT Trading Sessions (GMT-3)',
+      overnight:       'Overnight Session',
+      day_session:     'Day Session',
+      open_badge:      'Open',
+      closed_badge:    'Closed',
+      opens_in:        'Opens in',
+      closes_in:       'Closes in',
+      status_live:     'Auto-refreshing every 1s',
+      status_waiting:  'Waiting for sender...',
+      status_error:    'Connection error',
+      live_label:      'Live',
+      wait_label:      'Waiting',
+      offline_label:   'Offline',
+      footer:          '⚠ Confidential · Internal Use Only · Unauthorized distribution may be penalized',
+    },
+    es: {
+      brand_name:      'Panel de Mercado',
+      brand_sub:       'Feed en Vivo · Futuros de Soja',
+      commodity:       'Soja',
+      view_chart:      'Ver Gráfico',
+      last_price:      'Último Precio',
+      waiting:         'Esperando...',
+      high:            'Máx',
+      low:             'Mín',
+      net_chg:         'Var. Neta',
+      sessions_title:  'Sesiones CBOT (GMT-3)',
+      overnight:       'Sesión Nocturna',
+      day_session:     'Sesión Diurna',
+      open_badge:      'Abierto',
+      closed_badge:    'Cerrado',
+      opens_in:        'Abre en',
+      closes_in:       'Cierra en',
+      status_live:     'Actualizando cada 1s',
+      status_waiting:  'Esperando al emisor...',
+      status_error:    'Error de conexión',
+      live_label:      'En Vivo',
+      wait_label:      'Esperando',
+      offline_label:   'Sin Conexión',
+      footer:          '⚠ Confidencial · Solo Uso Interno · La distribución no autorizada puede ser penalizada',
+    },
+    pt: {
+      brand_name:      'Painel de Mercado',
+      brand_sub:       'Feed ao Vivo · Futuros de Soja',
+      commodity:       'Soja',
+      view_chart:      'Ver Gráfico',
+      last_price:      'Último Preço',
+      waiting:         'Aguardando...',
+      high:            'Máx',
+      low:             'Mín',
+      net_chg:         'Var. Líquida',
+      sessions_title:  'Sessões CBOT (GMT-3)',
+      overnight:       'Sessão Noturna',
+      day_session:     'Sessão Diurna',
+      open_badge:      'Aberto',
+      closed_badge:    'Fechado',
+      opens_in:        'Abre em',
+      closes_in:       'Fecha em',
+      status_live:     'Atualizando a cada 1s',
+      status_waiting:  'Aguardando o emissor...',
+      status_error:    'Erro de conexão',
+      live_label:      'Ao Vivo',
+      wait_label:      'Aguardando',
+      offline_label:   'Offline',
+      footer:          '⚠ Confidencial · Somente Uso Interno · A distribuição não autorizada pode ser penalizada',
+    }
+  };
+
+  let currentLang = 'en';
+
+  function setLang(lang) {
+    currentLang = lang;
+    const T = TRANSLATIONS[lang];
+    // Static data-i18n elements
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+      const key = el.getAttribute('data-i18n');
+      if (T[key] !== undefined) el.textContent = T[key];
+    });
+    // Dynamic badges (re-run sessions to refresh Open/Closed text)
+    updateSessions();
+    // Dynamic status
+    const statusEl = document.getElementById('status-text');
+    if (statusEl.dataset.state === 'live')    statusEl.textContent = T.status_live;
+    if (statusEl.dataset.state === 'waiting') statusEl.textContent = T.status_waiting;
+    if (statusEl.dataset.state === 'error')   statusEl.textContent = T.status_error;
+    // Live label
+    const liveEl = document.getElementById('live-label');
+    if (liveEl.dataset.state === 'live')    liveEl.textContent = T.live_label;
+    if (liveEl.dataset.state === 'waiting') liveEl.textContent = T.wait_label;
+    if (liveEl.dataset.state === 'offline') liveEl.textContent = T.offline_label;
+    // Flag buttons
+    ['en','es','pt'].forEach(l => {
+      document.getElementById('lang-'+l).classList.toggle('active', l === lang);
+    });
+  }
+
+  function t(key) { return TRANSLATIONS[currentLang][key] || key; }
+
+  // ── Init ─────────────────────────────────────────────────
+  updateSessLabels();
+  fetchSettings();
+  fetchPrice();
+  setInterval(fetchPrice,    INTERVAL);
+  setInterval(updateSessions, 1000);
+  setInterval(fetchSettings,  30000);
+</script>
+</body>
+</html>
