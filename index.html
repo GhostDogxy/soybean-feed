@@ -1,0 +1,1398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Soybean Futures — Live Price</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;600;700;800&family=Barlow:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --main:    #27245F;
+    --main-dk: #1a1840;
+    --sec:     #1BB24A;
+    --sec-dim: #128336;
+    --tert:    #A3CE3A;
+    --white:   #ffffff;
+    --muted:   #8b8fb8;
+    --red:     #e85a4b;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background: var(--main-dk); color: var(--white);
+    font-family: 'Barlow', sans-serif;
+    min-height: 100vh; display: flex; flex-direction: column;
+    align-items: center; justify-content: flex-start;
+    padding: 20px 16px 32px;
+  }
+  .bg {
+    position:fixed; inset:0; z-index:0;
+    background:
+      radial-gradient(ellipse 80% 60% at 10% 20%, rgba(27,178,74,0.12) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 80% at 90% 80%, rgba(163,206,58,0.08) 0%, transparent 60%),
+      radial-gradient(ellipse 100% 100% at 50% 50%, var(--main) 0%, var(--main-dk) 100%);
+  }
+  .bg::after {
+    content:''; position:absolute; inset:0;
+    background-image: linear-gradient(rgba(163,206,58,0.04) 1px,transparent 1px),
+                      linear-gradient(90deg,rgba(163,206,58,0.04) 1px,transparent 1px);
+    background-size: 48px 48px;
+  }
+  .top-bar {
+    position:fixed; top:0; left:0; right:0; height:3px;
+    background:linear-gradient(90deg,var(--sec),var(--tert),var(--sec));
+    background-size:200% 100%; animation:shimmer 3s linear infinite; z-index:10;
+  }
+  @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
+  .wrapper {
+    position:relative; z-index:1;
+    display:flex; flex-direction:column; align-items:center; gap:14px;
+    width:100%; max-width:680px;
+  }
+
+  /* Header */
+  .page-header { width:100%; display:flex; align-items:center; justify-content:space-between; opacity:0; animation:fadeUp .6s ease forwards; }
+  .brand-name { font-family:'Barlow Condensed',sans-serif; font-weight:800; font-size:1.1rem; letter-spacing:.2em; text-transform:uppercase; }
+  .brand-sub  { font-size:.65rem; letter-spacing:.2em; color:var(--muted); text-transform:uppercase; margin-top:2px; }
+  .live-badge { display:flex; align-items:center; gap:7px; background:rgba(27,178,74,0.12); border:1px solid rgba(27,178,74,0.3); border-radius:20px; padding:5px 14px; font-size:.65rem; letter-spacing:.15em; color:var(--sec); text-transform:uppercase; font-weight:500; }
+  .live-dot   { width:6px; height:6px; border-radius:50%; background:var(--sec); animation:pulse 1.5s infinite; }
+  .live-dot.off { background:var(--muted); animation:none; }
+  @keyframes pulse { 0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(27,178,74,.5)}50%{opacity:.7;box-shadow:0 0 0 5px rgba(27,178,74,0)} }
+
+  /* Two contract cards */
+  .contracts-row { width:100%; display:flex; gap:12px; opacity:0; animation:fadeUp .6s ease .1s forwards; }
+
+  .contract-card {
+    flex:1; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.1);
+    border-radius:14px; overflow:hidden;
+    -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px);
+    cursor:pointer; transition:border-color .2s, box-shadow .2s, transform .15s;
+    user-select:none;
+  }
+  .contract-card:hover { border-color:rgba(163,206,58,0.3); transform:translateY(-1px); }
+
+
+  .c-header {
+    background:linear-gradient(135deg,var(--main) 0%,rgba(55,50,130,0.8) 100%);
+    border-bottom:1px solid rgba(163,206,58,0.2);
+    padding:13px 16px 11px; display:flex; align-items:flex-start; justify-content:space-between;
+    transition:border-bottom-color .2s;
+  }
+  .c-name   { font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:1.15rem; letter-spacing:.06em; text-transform:uppercase; }
+
+  .c-symbol-wrap { display:flex; flex-direction:column; align-items:flex-end; gap:5px; }
+  .c-symbol { font-family:'Barlow Condensed',sans-serif; font-size:.68rem; letter-spacing:.12em; color:var(--white); font-weight:700; background:rgba(255,255,255,0.12); border:1px solid rgba(255,255,255,0.22); border-radius:4px; padding:3px 8px; }
+  .chart-hint-link {
+    font-size:.58rem; letter-spacing:.1em; color:var(--tert); text-transform:uppercase;
+    text-decoration:none; font-family:'Barlow Condensed',sans-serif; font-weight:600;
+    opacity:1; transition:color .2s;
+    display:flex; align-items:center; gap:4px;
+  }
+  .chart-hint-link:hover { color:var(--white); }
+
+  .c-body { padding:13px 16px 15px; display:flex; flex-direction:column; gap:8px; }
+  .c-price-label { font-size:.56rem; letter-spacing:.18em; color:var(--muted); text-transform:uppercase; }
+
+  .connecting { display:flex; flex-direction:column; align-items:center; gap:8px; padding:18px 0; }
+  .spinner { width:26px; height:26px; border:2px solid rgba(163,206,58,0.2); border-top-color:var(--tert); border-radius:50%; animation:spin .8s linear infinite; }
+  @-webkit-keyframes spin { to{transform:rotate(360deg)} }
+  @keyframes spin { to{transform:rotate(360deg)} }
+  .connecting-text { font-size:.6rem; color:var(--muted); letter-spacing:.12em; text-transform:uppercase; }
+
+  .c-price-row { display:flex; align-items:baseline; gap:4px; }
+  .c-curr { font-family:'Barlow Condensed',sans-serif; font-size:1rem; font-weight:300; color:var(--muted); }
+  .c-price {
+    font-family:'Barlow Condensed',sans-serif; font-weight:800; font-size:2.6rem;
+    line-height:1; color:var(--tert); text-shadow:0 0 28px rgba(163,206,58,.25);
+    transition:color .3s,text-shadow .3s; letter-spacing:-.01em;
+  }
+  .c-price.flash-up   { color:var(--sec); text-shadow:0 0 50px rgba(27,178,74,.8); }
+  .c-price.flash-down { color:var(--red); text-shadow:0 0 50px rgba(232,90,75,.8); }
+  .c-unit { font-size:.55rem; color:var(--muted); letter-spacing:.08em; margin-bottom:3px; }
+
+  .c-hl { display:grid; grid-template-columns:1fr 1fr; gap:5px; }
+  .c-hl-box { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:6px; padding:6px 9px; display:flex; flex-direction:column; gap:2px; }
+  .c-hl-lbl { font-size:.5rem; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); }
+  .c-hl-dist { font-size:.58rem; color:rgba(255,255,255,0.35); font-family:'Barlow',sans-serif; font-weight:400; margin-top:1px; letter-spacing:.02em; }
+  .c-hl-val { font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:1.05rem; transition:color .3s; }
+  .c-hl-val.high     { color:var(--sec); }
+  .c-hl-val.low      { color:var(--red); }
+  .c-hl-val.positive { color:var(--sec); }
+  .c-hl-val.negative { color:var(--red); }
+  .c-hl-val.neutral  { color:var(--muted); }
+
+
+
+  /* Sessions */
+  .sessions-card {
+    width:100%; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.1);
+    border-radius:14px; overflow:hidden;
+    -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px);
+    opacity:0; animation:fadeUp .6s ease .2s forwards;
+  }
+  .sessions { padding:15px 20px 17px; display:flex; flex-direction:column; gap:9px; }
+  .sess-title { font-size:.6rem; letter-spacing:.2em; color:var(--muted); text-transform:uppercase; margin-bottom:2px; }
+  .sess-row { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:9px 13px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:8px; }
+  .sess-name  { font-family:'Barlow Condensed',sans-serif; font-weight:600; font-size:.8rem; letter-spacing:.1em; text-transform:uppercase; }
+  .sess-hours { font-size:.58rem; color:var(--muted); margin-top:2px; }
+  .sess-right { display:flex; flex-direction:column; align-items:flex-end; gap:3px; }
+  .sess-badge { font-size:.56rem; font-weight:700; letter-spacing:.12em; text-transform:uppercase; padding:2px 9px; border-radius:20px; }
+  .sess-badge.open   { background:rgba(27,178,74,0.15); border:1px solid rgba(27,178,74,0.35); color:var(--sec); }
+  .sess-badge.closed { background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:var(--muted); }
+  .sess-timer { font-size:.58rem; color:var(--muted); font-variant-numeric:tabular-nums; }
+  .sess-timer.active { color:var(--tert); }
+
+  .bottom-row { width:100%; display:flex; align-items:center; justify-content:space-between; opacity:0; animation:fadeUp .6s ease .25s forwards; }
+  .status-text { font-size:.62rem; color:var(--muted); letter-spacing:.1em; text-transform:uppercase; }
+  .timestamp   { font-size:.62rem; color:var(--muted); font-variant-numeric:tabular-nums; }
+
+  .error-banner { width:100%; font-size:.68rem; color:var(--red); text-align:center; padding:8px 14px; background:rgba(232,90,75,0.08); border:1px solid rgba(232,90,75,0.2); border-radius:8px; }
+  .footer { font-size:.58rem; color:rgba(255,255,255,0.14); letter-spacing:.14em; text-transform:uppercase; opacity:0; animation:fadeUp .6s ease .3s forwards; }
+
+  @keyframes fadeUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+
+  /* ── Language switcher ── */
+  .brand-live {
+    display:flex; align-items:center; gap:12px;
+  }
+  .lang-switcher {
+    display:flex; gap:6px; align-items:center;
+  }
+  .lang-btn {
+    background:none; border:1px solid transparent; cursor:pointer;
+    padding:2px 3px; border-radius:4px;
+    opacity:.4; transition:opacity .2s, transform .15s, border-color .2s;
+    filter:grayscale(40%); line-height:0;
+  }
+  .lang-btn img { display:block; width:24px; height:16px; border-radius:2px; object-fit:cover; }
+  .lang-btn:hover  { opacity:.75; transform:scale(1.12); }
+  .lang-btn.active { opacity:1; filter:none; transform:scale(1.08); border-color:rgba(163,206,58,0.5); }
+
+
+  /* ── Screenshot button & overlay ── */
+  .screenshot-btn {
+    display:flex; align-items:center; gap:6px;
+    background:none; border:1px solid rgba(163,206,58,0.3);
+    color:var(--tert); border-radius:8px;
+    padding:6px 12px; cursor:pointer;
+    font-family:'Barlow Condensed',sans-serif; font-weight:700;
+    font-size:.72rem; letter-spacing:.12em; text-transform:uppercase;
+    transition:all .2s; flex-shrink:0;
+  }
+  .screenshot-btn:hover { background:rgba(163,206,58,0.12); border-color:var(--tert); transform:translateY(-1px); }
+
+  .share-overlay {
+    display:none; position:fixed; inset:0; z-index:1000;
+    background:rgba(10,9,40,0.96);
+    align-items:center; justify-content:center;
+    flex-direction:column; gap:18px; padding:20px;
+  }
+  .share-overlay.visible { display:flex; }
+  .layout-toggle { display:flex; gap:4px; background:rgba(255,255,255,0.06); padding:4px; border-radius:10px; border:1px solid rgba(255,255,255,0.08); }
+  .layout-btn {
+    background:none; border:none; color:rgba(255,255,255,0.55); cursor:pointer;
+    padding:7px 16px; border-radius:7px; font-family:'Barlow Condensed',sans-serif;
+    font-weight:600; font-size:.72rem; letter-spacing:.12em; text-transform:uppercase;
+    transition:all .2s;
+  }
+  .layout-btn:hover  { color:#fff; }
+  .layout-btn.active { background:var(--tert); color:#1a1840; }
+
+  .share-preview {
+    max-width:92vw; max-height:75vh;
+    border-radius:16px; box-shadow:0 20px 60px rgba(0,0,0,0.5);
+  }
+  .share-loading {
+    color:var(--muted); font-family:'Barlow Condensed',sans-serif;
+    letter-spacing:.15em; text-transform:uppercase; font-size:.8rem;
+  }
+  .share-controls { display:flex; gap:10px; flex-wrap:wrap; justify-content:center; }
+  .share-action-btn {
+    font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:.8rem;
+    letter-spacing:.15em; text-transform:uppercase; padding:10px 22px;
+    border-radius:9px; cursor:pointer; border:none; transition:all .2s;
+  }
+  .share-wa-btn  { background:#25D366; color:#fff; }
+  .share-wa-btn:hover { background:#20c25d; }
+  .share-wa-btn:disabled { opacity:.6; pointer-events:none; }
+  .share-dl-btn  { background:var(--tert); color:#1a1840; }
+  .share-dl-btn:hover { background:#b8e040; }
+  .share-close-btn { background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.6); border:1px solid rgba(255,255,255,0.15); }
+  .share-close-btn:hover { background:rgba(255,255,255,0.14); color:#fff; }
+
+  /* ── Price Alerts ── */
+  .alerts-card {
+    width:100%; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07);
+    border-radius:14px; overflow:hidden;
+    -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px);
+    opacity:0; animation:fadeUp .6s ease .22s forwards;
+  }
+  .alerts-header {
+    padding:10px 16px; display:flex; align-items:center; justify-content:space-between;
+    cursor:pointer; user-select:none; transition:background .15s;
+    background:linear-gradient(135deg,rgba(39,36,95,0.4) 0%,rgba(55,50,130,0.25) 100%);
+    border-bottom:1px solid rgba(255,255,255,0.05);
+  }
+  .alerts-header:hover { background:linear-gradient(135deg,rgba(55,50,130,0.6),rgba(55,50,130,0.4)); }
+  .alerts-title { font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:.78rem; letter-spacing:.15em; text-transform:uppercase; color:var(--tert); }
+  .alerts-count { font-size:.6rem; color:var(--muted); letter-spacing:.08em; }
+  .alerts-toggle { font-size:.7rem; color:var(--muted); transition:transform .3s; margin-left:8px; }
+  .alerts-toggle.open { transform:rotate(180deg); }
+  .alerts-body { max-height:0; overflow:hidden; transition:max-height .4s ease; }
+  .alerts-body.open { max-height:500px; }
+  .alerts-inner { padding:14px 16px; }
+
+  .alert-form { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:12px; padding-bottom:12px; border-bottom:1px solid rgba(255,255,255,0.05); }
+  .alert-sel { background:rgba(255,255,255,0.05); color:#fff; border:1px solid rgba(255,255,255,0.1); border-radius:7px; padding:6px 10px; font-family:'Barlow',sans-serif; font-size:.78rem; cursor:pointer; }
+  .alert-sel:focus { outline:none; border-color:var(--tert); }
+  .alert-input { background:rgba(255,255,255,0.05); color:#fff; border:1px solid rgba(255,255,255,0.1); border-radius:7px; padding:6px 10px; font-family:'Barlow',sans-serif; font-size:.78rem; width:90px; }
+  .alert-input:focus { outline:none; border-color:var(--tert); }
+  .alert-add-btn { background:var(--tert); color:#1a1840; border:none; border-radius:7px; padding:7px 14px; cursor:pointer; font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:.7rem; letter-spacing:.12em; text-transform:uppercase; transition:all .15s; }
+  .alert-add-btn:hover { background:#b8e040; }
+
+  .alert-list { display:flex; flex-direction:column; gap:6px; }
+  .alert-empty { font-size:.72rem; color:var(--muted); text-align:center; padding:8px 0; font-style:italic; }
+  .alert-item {
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:8px 12px; background:rgba(255,255,255,0.04); border-radius:7px;
+    border:1px solid rgba(255,255,255,0.06); font-family:'Barlow',sans-serif; font-size:.78rem;
+    transition:all .2s;
+  }
+  .alert-item.triggered { background:rgba(163,206,58,0.12); border-color:var(--tert); }
+  .alert-txt { flex:1; color:rgba(255,255,255,0.85); }
+  .alert-contract { font-weight:600; color:var(--tert); margin-right:6px; }
+  .alert-status { font-size:.65rem; color:var(--muted); letter-spacing:.06em; text-transform:uppercase; }
+  .alert-status.triggered { color:var(--tert); font-weight:600; }
+  .alert-del { background:none; border:none; color:var(--muted); cursor:pointer; font-size:.9rem; padding:2px 6px; border-radius:4px; transition:all .15s; }
+  .alert-del:hover { color:var(--red); background:rgba(232,90,75,0.1); }
+
+  .alert-perm-btn { display:inline-flex; align-items:center; gap:6px; font-size:.68rem; color:var(--muted); cursor:pointer; padding:4px 10px; border:1px dashed rgba(255,255,255,0.15); border-radius:6px; background:none; font-family:'Barlow',sans-serif; }
+  .alert-perm-btn:hover { color:var(--tert); border-color:var(--tert); }
+
+  /* Visual alert flash */
+  .alert-flash {
+    position:fixed; top:20px; left:50%; transform:translateX(-50%);
+    background:linear-gradient(135deg,var(--sec),var(--tert)); color:#1a1840;
+    padding:14px 22px; border-radius:12px; font-family:'Barlow Condensed',sans-serif;
+    font-weight:700; letter-spacing:.08em; z-index:2000;
+    box-shadow:0 10px 30px rgba(27,178,74,0.4);
+    animation:alertPop .5s ease, alertFade .4s ease 4.6s forwards;
+  }
+  @keyframes alertPop  { from { transform:translate(-50%,-20px); opacity:0; } to { transform:translate(-50%,0); opacity:1; } }
+  @keyframes alertFade { to { opacity:0; transform:translate(-50%,-20px); } }
+</style>
+</head>
+<body>
+<div class="top-bar"></div>
+<div class="bg"></div>
+
+<div class="wrapper">
+
+  <div class="page-header">
+    <div class="brand-live">
+      <div><div class="brand-name" data-i18n="brand_name">Market Dashboard</div><div class="brand-sub" data-i18n="brand_sub">Live Feed · Soybean Futures</div></div>
+      <div class="live-badge">
+        <div class="live-dot off" id="live-dot"></div>
+        <span id="live-label">Connecting...</span>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;">
+    <button class="screenshot-btn" onclick="openShare()"><span>📷 <span data-i18n="screenshot">Screenshot</span></span></button>
+    <div class="lang-switcher">
+      <button class="lang-btn active" id="lang-en" onclick="setLang('en')" title="English"><img src="https://flagcdn.com/w40/us.png" alt="EN"></button>
+      <button class="lang-btn"        id="lang-es" onclick="setLang('es')" title="Español"><img src="https://flagcdn.com/w40/es.png" alt="ES"></button>
+      <button class="lang-btn"        id="lang-pt" onclick="setLang('pt')" title="Português"><img src="https://flagcdn.com/w40/br.png" alt="PT"></button>
+    </div>
+    </div>
+  </div>
+
+  <!-- ── Two contracts ── -->
+  <div class="contracts-row">
+
+    <div class="contract-card" id="card-c1">
+      <div class="c-header">
+        <div class="c-name" data-i18n="commodity">Soybean</div>
+        <div class="c-symbol-wrap">
+          <div class="c-symbol" id="c1-sym">—</div>
+          <a class="chart-hint-link" id="btn-c1" href="https://www.tradingview.com/chart/?symbol=CBOT%3AZS1!" target="_blank" rel="noopener">📈 <span data-i18n="view_chart">View Chart</span></a>
+        </div>
+      </div>
+      <div class="c-body">
+        <div class="c-price-label" data-i18n="last_price">Last Price</div>
+        <div class="connecting" id="c1-spin"><div class="spinner"></div><div class="connecting-text" data-i18n="waiting">Waiting...</div></div>
+        <div id="c1-data" style="display:none;flex-direction:column;gap:8px">
+          <div class="c-price-row">
+            <span class="c-curr">$</span>
+            <div class="c-price" id="c1-price">—</div>
+            <span class="c-unit">cnts/bu</span>
+          </div>
+          <div class="c-hl">
+            <div class="c-hl-box"><div class="c-hl-lbl">▲ <span data-i18n="high">High</span></div><div class="c-hl-val high"    id="c1-high">—</div><div class="c-hl-dist" id="c1-high-dist"></div></div>
+            <div class="c-hl-box"><div class="c-hl-lbl">▼ <span data-i18n="low">Low</span></div> <div class="c-hl-val low"     id="c1-low">—</div><div class="c-hl-dist" id="c1-low-dist"></div></div>
+            <div class="c-hl-box" style="grid-column:span 2"><div class="c-hl-lbl">± <span data-i18n="net_chg">Net Chg</span></div><div class="c-hl-val neutral" id="c1-chg">—</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="contract-card" id="card-c2">
+      <div class="c-header">
+        <div class="c-name" data-i18n="commodity">Soybean</div>
+        <div class="c-symbol-wrap">
+          <div class="c-symbol" id="c2-sym">—</div>
+          <a class="chart-hint-link" id="btn-c2" href="https://www.tradingview.com/chart/?symbol=CBOT%3AZS2!" target="_blank" rel="noopener">📈 <span data-i18n="view_chart">View Chart</span></a>
+        </div>
+      </div>
+      <div class="c-body">
+        <div class="c-price-label" data-i18n="last_price">Last Price</div>
+        <div class="connecting" id="c2-spin"><div class="spinner"></div><div class="connecting-text" data-i18n="waiting">Waiting...</div></div>
+        <div id="c2-data" style="display:none;flex-direction:column;gap:8px">
+          <div class="c-price-row">
+            <span class="c-curr">$</span>
+            <div class="c-price" id="c2-price">—</div>
+            <span class="c-unit">cnts/bu</span>
+          </div>
+          <div class="c-hl">
+            <div class="c-hl-box"><div class="c-hl-lbl">▲ <span data-i18n="high">High</span></div><div class="c-hl-val high"    id="c2-high">—</div><div class="c-hl-dist" id="c2-high-dist"></div></div>
+            <div class="c-hl-box"><div class="c-hl-lbl">▼ <span data-i18n="low">Low</span></div> <div class="c-hl-val low"     id="c2-low">—</div><div class="c-hl-dist" id="c2-low-dist"></div></div>
+            <div class="c-hl-box" style="grid-column:span 2"><div class="c-hl-lbl">± <span data-i18n="net_chg">Net Chg</span></div><div class="c-hl-val neutral" id="c2-chg">—</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+
+
+  <div id="err-banner" class="error-banner" style="display:none"></div>
+
+  <!-- ── Sessions ── -->
+  <div class="sessions-card">
+    <div class="sessions">
+      <div class="sess-title" data-i18n="sessions_title">CBOT Trading Sessions (GMT-3)</div>
+      <div class="sess-row">
+        <div><div class="sess-name">🌙 <span data-i18n="overnight">Overnight Session</span></div><div class="sess-hours" id="on-hours">—</div></div>
+        <div class="sess-right">
+          <div class="sess-badge closed" id="on-badge">Closed</div>
+          <div class="sess-timer"        id="on-timer">—</div>
+        </div>
+      </div>
+      <div class="sess-row">
+        <div><div class="sess-name">☀️ <span data-i18n="day_session">Day Session</span></div><div class="sess-hours" id="day-hours">—</div></div>
+        <div class="sess-right">
+          <div class="sess-badge closed" id="day-badge">Closed</div>
+          <div class="sess-timer"        id="day-timer">—</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ── Price Alerts ── -->
+  <div class="alerts-card">
+    <div class="alerts-header" onclick="toggleAlerts()">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span class="alerts-title" data-i18n="alerts_title">🔔 Price Alerts</span>
+        <span class="alerts-count" id="alerts-count"></span>
+      </div>
+      <span class="alerts-toggle" id="alerts-toggle">▼</span>
+    </div>
+    <div class="alerts-body" id="alerts-body">
+      <div class="alerts-inner">
+        <div class="alert-form">
+          <select class="alert-sel" id="alert-contract">
+            <option value="c1">K26</option>
+            <option value="c2">N26</option>
+          </select>
+          <select class="alert-sel" id="alert-dir">
+            <option value="above" data-i18n="alert_above">Above</option>
+            <option value="below" data-i18n="alert_below">Below</option>
+          </select>
+          <input class="alert-input" id="alert-price" type="number" step="0.25" placeholder="1200">
+          <button class="alert-add-btn" onclick="addAlert()" data-i18n="alert_add">Add Alert</button>
+          <button class="alert-perm-btn" id="alert-perm-btn" onclick="requestNotifPerm()" style="display:none;">🔔 <span data-i18n="alert_enable_notif">Enable notifications</span></button>
+        </div>
+        <div class="alert-list" id="alert-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="bottom-row">
+    <span class="status-text" id="status-text">Connecting to feed...</span>
+    <span class="timestamp"   id="timestamp">—</span>
+  </div>
+
+  <div class="footer" data-i18n="footer">⚠ Confidential · Internal Use Only · Unauthorized distribution may be penalized</div>
+
+  <!-- ── Hidden logo image (preloaded for canvas) ── -->
+  <img id="adm-logo" src="data:image/png;base64,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" alt="ADM" style="display:none;" crossorigin="anonymous">
+
+  <!-- ── Share overlay ── -->
+  <div class="share-overlay" id="share-overlay">
+    <div class="layout-toggle" id="layout-toggle" style="display:none;">
+      <button class="layout-btn active" data-layout="horizontal" onclick="switchLayout('horizontal')">▭ <span data-i18n="layout_horizontal">Horizontal</span></button>
+      <button class="layout-btn" data-layout="vertical" onclick="switchLayout('vertical')">▯ <span data-i18n="layout_vertical">Vertical</span></button>
+    </div>
+    <div class="share-loading" id="share-loading">Generating image...</div>
+    <img id="share-preview" class="share-preview" style="display:none;">
+    <div class="share-controls" id="share-controls" style="display:none;">
+      <button class="share-action-btn share-wa-btn" id="share-wa-btn" onclick="shareCard()">📲 Share</button>
+      <button class="share-action-btn share-dl-btn" onclick="downloadCard()">⬇ Download</button>
+      <button class="share-action-btn share-close-btn" onclick="closeShare()">✕ Close</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  const FB_PRICE    = 'https://soybean-feed-default-rtdb.firebaseio.com/price.json';
+  const FB_PRESENCE = 'https://soybean-feed-default-rtdb.firebaseio.com/presence.json';
+  const FB_SETTINGS = 'https://soybean-feed-default-rtdb.firebaseio.com/settings.json';
+  const INTERVAL    = 1000;
+
+  let last1 = null, last2 = null;
+  let seen1 = false, seen2 = false;
+  let sym1 = '', sym2 = '';
+
+  function updateChartButtons(s1, s2) {
+    // Links are static (ZS1!/ZS2!), nothing dynamic needed
+  }
+
+
+  // ── Price fetch ───────────────────────────────────────────
+
+  function updateDistance(prefix, price, high, low) {
+    if (isNaN(price) || isNaN(high) || isNaN(low)) return;
+    const hiDist = high - price;
+    const loDist = price - low;
+    const hiPct  = high !== 0 ? (hiDist / price) * 100 : 0;
+    const loPct  = low  !== 0 ? (loDist / price) * 100 : 0;
+    document.getElementById(prefix + '-high-dist').textContent =
+      hiDist > 0.005 ? '-' + hiDist.toFixed(2) + ' (-' + hiPct.toFixed(2) + '%)' : '';
+    document.getElementById(prefix + '-low-dist').textContent =
+      loDist > 0.005 ? '+' + loDist.toFixed(2) + ' (+' + loPct.toFixed(2) + '%)' : '';
+  }
+
+  function applyChg(id, val, price) {
+    const el = document.getElementById(id);
+    if (isNaN(val)) { el.textContent='—'; el.className='c-hl-val neutral'; return; }
+    const sign = val >= 0 ? '+' : '';
+    let txt = sign + val.toFixed(2);
+    if (!isNaN(price) && price !== 0) {
+      const pct = (val / (price - val)) * 100;
+      txt += ' (' + (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%)';
+    }
+    el.textContent = txt;
+    el.className   = 'c-hl-val ' + (val > 0 ? 'positive' : val < 0 ? 'negative' : 'neutral');
+  }
+
+  function flash(id, prev, curr) {
+    if (prev !== null && curr !== prev) {
+      const cls = curr > prev ? 'flash-up' : 'flash-down';
+      const el  = document.getElementById(id);
+      el.classList.add(cls);
+      setTimeout(() => el.classList.remove(cls), 600);
+    }
+  }
+
+  async function fetchPrice() {
+    try {
+      const res  = await fetch(FB_PRICE + '?t=' + Date.now(), { cache:'no-store', mode:'cors' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+
+      if (!data || !data.c1) {
+        document.getElementById('status-text').dataset.state='waiting'; document.getElementById('status-text').textContent = t('status_waiting');
+        document.getElementById('live-dot').className = 'live-dot off';
+        document.getElementById('live-label').dataset.state='waiting'; document.getElementById('live-label').textContent = t('wait_label');
+        return;
+      }
+      clearErr();
+
+      // Contract 1
+      const c1 = data.c1;
+      const newSym1 = c1.symbol || sym1;
+      if (newSym1 !== sym1) { sym1 = newSym1; updateChartButtons(sym1, null); }
+      if (!seen1) { document.getElementById('c1-spin').style.display='none'; document.getElementById('c1-data').style.display='flex'; seen1=true; updateChartButtons(sym1, sym2); }
+      document.getElementById('c1-sym').textContent   = c1.symbol || '—';
+      const p1 = parseFloat(c1.value);
+      flash('c1-price', last1, p1); last1 = p1;
+      document.getElementById('c1-price').textContent = p1.toFixed(2);
+      document.getElementById('c1-high').textContent  = isNaN(+c1.high) ? '—' : (+c1.high).toFixed(2);
+      document.getElementById('c1-low').textContent   = isNaN(+c1.low)  ? '—' : (+c1.low).toFixed(2);
+      updateDistance('c1', p1, +c1.high, +c1.low);
+      applyChg('c1-chg', parseFloat(c1.netChange), p1);
+
+      // Contract 2
+      const c2 = data.c2;
+      const newSym2 = c2.symbol || sym2;
+      if (newSym2 !== sym2) { sym2 = newSym2; updateChartButtons(null, sym2); }
+      if (!seen2) { document.getElementById('c2-spin').style.display='none'; document.getElementById('c2-data').style.display='flex'; seen2=true; }
+      document.getElementById('c2-sym').textContent   = c2.symbol || '—';
+      const p2 = parseFloat(c2.value);
+      flash('c2-price', last2, p2); last2 = p2;
+      document.getElementById('c2-price').textContent = p2.toFixed(2);
+      document.getElementById('c2-high').textContent  = isNaN(+c2.high) ? '—' : (+c2.high).toFixed(2);
+      document.getElementById('c2-low').textContent   = isNaN(+c2.low)  ? '—' : (+c2.low).toFixed(2);
+      updateDistance('c2', p2, +c2.high, +c2.low);
+      applyChg('c2-chg', parseFloat(c2.netChange), p2);
+
+      checkAlerts(p1, p2);
+
+      document.getElementById('live-dot').className    = 'live-dot';
+      document.getElementById('live-label').dataset.state='live'; document.getElementById('live-label').textContent = t('live_label');
+      document.getElementById('status-text').dataset.state='live'; document.getElementById('status-text').textContent = t('status_live');
+      document.getElementById('timestamp').textContent   = new Date().toLocaleTimeString('en-US',{hour12:false});
+
+    } catch(e) {
+      showErr('Cannot reach feed: ' + e.message);
+      document.getElementById('live-dot').className    = 'live-dot off';
+      document.getElementById('live-label').dataset.state='offline'; document.getElementById('live-label').textContent = t('offline_label');
+    }
+  }
+
+  // ── Settings fetch ────────────────────────────────────────
+  let sessCfg = {
+    overnight: { open:'22:00', close:'10:45', days:[0,1,2,3,4] },
+    day:       { open:'11:30', close:'16:20', days:[1,2,3,4,5]  }
+  };
+
+  async function fetchSettings() {
+    try {
+      const res  = await fetch(FB_SETTINGS + '?t=' + Date.now(), { cache:'no-store', mode:'cors' });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data && data.overnight && data.day) { sessCfg = data; updateSessLabels(); }
+    } catch(e) {}
+  }
+
+  function updateSessLabels() {
+    const N = TRANSLATIONS[currentLang].day_names || ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    document.getElementById('on-hours').textContent  = sessCfg.overnight.days.map(d=>N[d]).join('–') + ' · ' + sessCfg.overnight.open + ' – ' + sessCfg.overnight.close + ' GMT-3';
+    document.getElementById('day-hours').textContent = sessCfg.day.days.map(d=>N[d]).join('–')       + ' · ' + sessCfg.day.open       + ' – ' + sessCfg.day.close       + ' GMT-3';
+  }
+
+  function toMin(t) { const [h,m]=t.split(':').map(Number); return h*60+m; }
+  function pad(n)   { return String(n).padStart(2,'0'); }
+  function cdStr(s) { if(s<0)s=0; return pad(~~(s/3600))+':'+pad(~~(s%3600/60))+':'+pad(s%60); }
+
+  function updateSessions() {
+    const local  = new Date(new Date().toLocaleString('en-US',{timeZone:'America/Sao_Paulo'}));
+    const day    = local.getDay();
+    const h=local.getHours(), m=local.getMinutes(), s=local.getSeconds();
+    const curMin = h*60+m, curSec = h*3600+m*60+s;
+
+    function upd(key, bId, tId) {
+      const cfg  = sessCfg[key];
+      const oMin = toMin(cfg.open), cMin = toMin(cfg.close);
+      const act  = cfg.days, cross = cMin < oMin;
+      let isOpen = false;
+      if (!cross) { isOpen = act.includes(day) && curMin >= oMin && curMin < cMin; }
+      else { const prev=(day+6)%7; isOpen=(act.includes(day)&&curMin>=oMin)||(act.includes(prev)&&curMin<cMin); }
+
+      const badge = document.getElementById(bId);
+      const timer = document.getElementById(tId);
+      if (isOpen) {
+        badge.className='sess-badge open'; badge.textContent=t('open_badge');
+        timer.className='sess-timer active';
+        let d=cMin*60-curSec; if(d<0)d+=86400;
+        timer.textContent=t('closes_in')+' '+cdStr(d);
+      } else {
+        badge.className='sess-badge closed'; badge.textContent=t('closed_badge');
+        timer.className='sess-timer';
+        for(let i=0;i<7;i++){
+          const cd=(day+i)%7;
+          if(act.includes(cd)){ let d=toMin(cfg.open)*60-curSec+i*86400; if(d<=0)continue; timer.textContent=t('opens_in')+' '+cdStr(d); return; }
+        }
+        timer.textContent='—';
+      }
+    }
+    upd('overnight','on-badge','on-timer');
+    upd('day','day-badge','day-timer');
+  }
+
+  function showErr(m) { document.getElementById('err-banner').style.display='block'; document.getElementById('err-banner').textContent=m; document.getElementById('status-text').dataset.state='error'; document.getElementById('status-text').textContent=t('status_error'); }
+  function clearErr() { document.getElementById('err-banner').style.display='none'; }
+
+
+  // ── Native Canvas share card renderer ─────────────────────
+  let _sharePngBlob = null;
+
+  function drawSessionsLine(ctx, y, w, label) {
+    // "🌙 CLOSED · SUN-MON... · 21:00 - 09:45 GMT-3"
+  }
+
+
+  async function renderShareCardVertical() {
+    const scale = 2;
+    const W = 540, H = 960; // 9:16 ratio — phone-story size
+    const canvas = document.createElement('canvas');
+    canvas.width = W * scale; canvas.height = H * scale;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(scale, scale);
+
+    // Colors
+    const BG_TOP     = '#27245F';
+    const BORDER     = 'rgba(163,206,58,0.3)';
+    const GREEN      = '#1BB24A';
+    const GREEN_LIME = '#A3CE3A';
+    const RED        = '#e85a4b';
+    const WHITE      = '#ffffff';
+    const MUTED      = 'rgba(255,255,255,0.4)';
+    const MUTED2     = 'rgba(255,255,255,0.65)';
+
+    // Background gradient
+    const bg = ctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, '#1e1b52');
+    bg.addColorStop(1, '#16144a');
+    ctx.fillStyle = bg;
+    roundRect(ctx, 0, 0, W, H, 20, true);
+
+    // ── Header bar ──
+    const headerH = 140;
+    const headerGrad = ctx.createLinearGradient(0, 0, 0, headerH);
+    headerGrad.addColorStop(0, BG_TOP);
+    headerGrad.addColorStop(1, '#1e1b52');
+    ctx.fillStyle = headerGrad;
+    ctx.fillRect(0, 0, W, headerH);
+    ctx.fillStyle = BORDER;
+    ctx.fillRect(0, headerH - 2, W, 2);
+
+    // Logo — centered both axes
+    const T = TRANSLATIONS[currentLang];
+    const logo = document.getElementById('adm-logo');
+    if (logo && logo.complete && logo.naturalHeight > 0) {
+      const lh = 100, lw = logo.naturalWidth * (lh / logo.naturalHeight);
+      ctx.drawImage(logo, (W - lw) / 2, (headerH - lh) / 2, lw, lh);
+    } else {
+      ctx.fillStyle = WHITE;
+      ctx.font = '800 48px "Barlow Condensed", Arial, sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('ADM', W / 2, headerH / 2);
+    }
+
+    // ── Two contract rows (stacked vertically) ──
+    const rowH = 330;
+    const row1Y = headerH + 20;
+    const row2Y = row1Y + rowH + 15;
+    ctx.textAlign = 'left';
+
+    function drawContractRow(y, sym, price, high, low, chg, chgCls) {
+      const priceColor = GREEN_LIME;
+      const chgColor   = chgCls.includes('positive') ? GREEN : chgCls.includes('negative') ? RED : 'rgba(255,255,255,0.5)';
+      const pad = 24;
+
+      // Card background
+      ctx.fillStyle = 'rgba(255,255,255,0.03)';
+      ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 1;
+      roundRect(ctx, 20, y, W - 40, rowH, 14, true, true);
+
+      // Top row — "Soybean" label + Symbol badge
+      ctx.fillStyle = MUTED;
+      ctx.font = '600 17px "Barlow Condensed", Arial, sans-serif';
+      ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+      ctx.fillText((T.commodity || 'Soybean').toUpperCase(), 20 + pad, y + 16);
+
+      const symPadX = 16;
+      ctx.font = '700 17px "Barlow Condensed", Arial, sans-serif';
+      const symW = ctx.measureText(sym).width + symPadX * 2;
+      const symX = W - 20 - pad - symW, symY = y + 8;
+      ctx.fillStyle = 'rgba(255,255,255,0.1)';
+      ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 1;
+      roundRect(ctx, symX, symY, symW, 30, 6, true, true);
+      ctx.fillStyle = WHITE;
+      ctx.textBaseline = 'middle';
+      ctx.fillText(sym, symX + symPadX, symY + 15);
+
+      // Big price
+      ctx.fillStyle = priceColor;
+      ctx.font = '800 72px "Barlow Condensed", Arial, sans-serif';
+      ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+      ctx.fillText(price, 20 + pad, y + 50);
+
+      // cnts/bu
+      ctx.fillStyle = 'rgba(255,255,255,0.3)';
+      ctx.font = '400 12px "Barlow Condensed", Arial, sans-serif';
+      ctx.fillText('cnts/bu', 20 + pad, y + 132);
+
+      // High / Low boxes side by side
+      const boxY = y + 160, boxH = 60;
+      const boxW = (W - 40 - pad * 2 - 10) / 2;
+      drawStatBox(ctx, 20 + pad,               boxY, boxW, boxH, '▲ ' + (T.high || 'High').toUpperCase(), high, GREEN);
+      drawStatBox(ctx, 20 + pad + boxW + 10,   boxY, boxW, boxH, '▼ ' + (T.low  || 'Low').toUpperCase(),  low,  RED);
+
+      // Net Chg (full width)
+      drawStatBox(ctx, 20 + pad, y + 235, W - 40 - pad * 2, boxH, '± ' + (T.net_chg || 'Net Chg').toUpperCase(), chg, chgColor);
+    }
+
+    const sym1  = document.getElementById('c1-sym').textContent;
+    const sym2  = document.getElementById('c2-sym').textContent;
+    const pr1   = document.getElementById('c1-price').textContent;
+    const pr2   = document.getElementById('c2-price').textContent;
+    const hi1   = document.getElementById('c1-high').textContent;
+    const hi2   = document.getElementById('c2-high').textContent;
+    const lo1   = document.getElementById('c1-low').textContent;
+    const lo2   = document.getElementById('c2-low').textContent;
+    const chg1  = document.getElementById('c1-chg').textContent;
+    const chg2  = document.getElementById('c2-chg').textContent;
+    const chg1c = document.getElementById('c1-chg').className;
+    const chg2c = document.getElementById('c2-chg').className;
+
+    drawContractRow(row1Y, sym1, pr1, hi1, lo1, chg1, chg1c);
+    drawContractRow(row2Y, sym2, pr2, hi2, lo2, chg2, chg2c);
+
+    // ── Footer ──
+    const footY = H - 70;
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.fillRect(0, footY, W, 70);
+
+    // Sessions — stacked
+    const onH  = document.getElementById('on-hours').textContent;
+    const dayH = document.getElementById('day-hours').textContent;
+    const onB  = document.getElementById('on-badge').textContent;
+    const dayB = document.getElementById('day-badge').textContent;
+
+    ctx.fillStyle = MUTED2;
+    ctx.font = '600 11px "Barlow Condensed", Arial, sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('🌙 ' + onB.toUpperCase() + ' · ' + onH,  W / 2, footY + 20);
+    ctx.fillText('☀ '  + dayB.toUpperCase() + ' · ' + dayH, W / 2, footY + 38);
+
+    // Timestamp
+    ctx.fillStyle = 'rgba(163,206,58,0.9)';
+    ctx.font = '500 11px "Barlow Condensed", Arial, sans-serif';
+    const ts = new Date().toLocaleString('en-US', {hour12:false, month:'short', day:'2-digit', hour:'2-digit', minute:'2-digit'});
+    ctx.fillText(ts, W / 2, footY + 58);
+
+    const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+    const dataUrl = canvas.toDataURL('image/png');
+    return { blob, dataUrl };
+  }
+
+  async function renderShareCard(layout) {
+    layout = layout || 'horizontal';
+    if (layout === 'vertical') return renderShareCardVertical();
+    const scale = 2;
+    const W = 900, H = 480;
+    const canvas = document.createElement('canvas');
+    canvas.width = W * scale; canvas.height = H * scale;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(scale, scale);
+
+    // Colors
+    const BG_TOP     = '#27245F';
+    const BG_BOT     = '#16144a';
+    const BORDER     = 'rgba(163,206,58,0.3)';
+    const GREEN      = '#1BB24A';
+    const GREEN_LIME = '#A3CE3A';
+    const RED        = '#e85a4b';
+    const WHITE      = '#ffffff';
+    const MUTED      = 'rgba(255,255,255,0.4)';
+    const MUTED2     = 'rgba(255,255,255,0.65)';
+
+    // Background gradient
+    const bg = ctx.createLinearGradient(0, 0, W, H);
+    bg.addColorStop(0, '#1e1b52');
+    bg.addColorStop(1, '#16144a');
+    ctx.fillStyle = bg;
+    roundRect(ctx, 0, 0, W, H, 18, true);
+
+    // ── Header bar ──
+    const headerH = 80;
+    const headerGrad = ctx.createLinearGradient(0, 0, W, 0);
+    headerGrad.addColorStop(0, BG_TOP);
+    headerGrad.addColorStop(1, '#1e1b52');
+    ctx.fillStyle = headerGrad;
+    ctx.fillRect(0, 0, W, headerH);
+    // Bottom accent line
+    ctx.fillStyle = BORDER;
+    ctx.fillRect(0, headerH - 2, W, 2);
+
+    // Logo — draw pre-loaded image
+    const logo = document.getElementById('adm-logo');
+    if (logo && logo.complete && logo.naturalHeight > 0) {
+      const lh = 56, lw = logo.naturalWidth * (lh / logo.naturalHeight);
+      ctx.drawImage(logo, 26, (headerH - lh) / 2, lw, lh);
+    } else {
+      // Fallback text
+      ctx.fillStyle = WHITE;
+      ctx.font = '800 28px "Barlow Condensed", Arial, sans-serif';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('ADM', 26, headerH / 2);
+    }
+
+    // Center title — "Soybean Futures"
+    const T = TRANSLATIONS[currentLang];
+    ctx.fillStyle = 'rgba(163,206,58,0.95)';
+    ctx.font = '700 22px "Barlow Condensed", Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const titleText = T.title_futures || ((T.commodity || 'Soybean') + ' Futures').toUpperCase();
+    ctx.fillText(titleText, W / 2, headerH / 2);
+    ctx.textAlign = 'left';
+
+
+    // ── Two contract columns ──
+    const colY = headerH + 20, colH = 330;
+    const colW = (W - 40) / 2;
+    const col1X = 20, col2X = W / 2 + 0;
+
+    // Divider
+    ctx.fillStyle = 'rgba(255,255,255,0.08)';
+    ctx.fillRect(W / 2, colY + 10, 1, colH - 20);
+
+    function drawContract(x, sym, price, high, low, chg, chgCls) {
+      const priceColor = GREEN_LIME;
+      const chgColor   = chgCls.includes('positive') ? GREEN : chgCls.includes('negative') ? RED : 'rgba(255,255,255,0.5)';
+
+      // "Soybean" label
+      ctx.fillStyle = MUTED;
+      ctx.font = '600 13px "Barlow Condensed", Arial, sans-serif';
+      ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+      ctx.fillText((T.commodity || 'Soybean').toUpperCase(), x + 20, colY + 8);
+
+      // Symbol badge (right-aligned)
+      const symPadX = 14, symPadY = 5;
+      ctx.font = '700 13px "Barlow Condensed", Arial, sans-serif';
+      const symW = ctx.measureText(sym).width + symPadX * 2;
+      const symX = x + colW - symW - 20, symY = colY + 2;
+      ctx.fillStyle = 'rgba(255,255,255,0.1)';
+      ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 1;
+      roundRect(ctx, symX, symY, symW, 22, 5, true, true);
+      ctx.fillStyle = WHITE;
+      ctx.textBaseline = 'middle';
+      ctx.fillText(sym, symX + symPadX, symY + 11);
+
+      // Big price
+      ctx.fillStyle = priceColor;
+      ctx.font = '800 62px "Barlow Condensed", Arial, sans-serif';
+      ctx.textBaseline = 'top';
+      ctx.fillText(price, x + 20, colY + 38);
+
+      // cnts/bu
+      ctx.fillStyle = 'rgba(255,255,255,0.3)';
+      ctx.font = '400 11px "Barlow Condensed", Arial, sans-serif';
+      ctx.fillText('cnts/bu', x + 20, colY + 110);
+
+      // High / Low boxes (side by side)
+      const boxY = colY + 140, boxH = 58;
+      const boxW = (colW - 50) / 2;
+      drawStatBox(ctx, x + 20,               boxY, boxW, boxH, '▲ ' + (T.high || 'High').toUpperCase(), high, GREEN);
+      drawStatBox(ctx, x + 20 + boxW + 10,   boxY, boxW, boxH, '▼ ' + (T.low  || 'Low').toUpperCase(),  low,  RED);
+
+      // Net Chg (full width below)
+      drawStatBox(ctx, x + 20, colY + 210, colW - 40, boxH, '± ' + (T.net_chg || 'Net Chg').toUpperCase(), chg, chgColor);
+    }
+
+    const sym1  = document.getElementById('c1-sym').textContent;
+    const sym2  = document.getElementById('c2-sym').textContent;
+    const pr1   = document.getElementById('c1-price').textContent;
+    const pr2   = document.getElementById('c2-price').textContent;
+    const hi1   = document.getElementById('c1-high').textContent;
+    const hi2   = document.getElementById('c2-high').textContent;
+    const lo1   = document.getElementById('c1-low').textContent;
+    const lo2   = document.getElementById('c2-low').textContent;
+    const chg1  = document.getElementById('c1-chg').textContent;
+    const chg2  = document.getElementById('c2-chg').textContent;
+    const chg1c = document.getElementById('c1-chg').className;
+    const chg2c = document.getElementById('c2-chg').className;
+
+    drawContract(col1X, sym1, pr1, hi1, lo1, chg1, chg1c);
+    drawContract(col2X, sym2, pr2, hi2, lo2, chg2, chg2c);
+
+    // ── Footer ──
+    const footY = H - 60;
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.fillRect(0, footY, W, 60);
+
+    // Sessions line
+    const onH  = document.getElementById('on-hours').textContent;
+    const dayH = document.getElementById('day-hours').textContent;
+    const onB  = document.getElementById('on-badge').textContent;
+    const dayB = document.getElementById('day-badge').textContent;
+
+    ctx.fillStyle = MUTED2;
+    ctx.font = '600 11px "Barlow Condensed", Arial, sans-serif';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText('🌙 ' + onB.toUpperCase() + ' · ' + onH, 20, footY + 18);
+    ctx.textAlign = 'right';
+    ctx.fillText('☀ ' + dayB.toUpperCase() + ' · ' + dayH, W - 20, footY + 18);
+
+    // Bottom row: timestamp only
+    ctx.fillStyle = 'rgba(163,206,58,0.9)';
+    ctx.font = '500 11px "Barlow Condensed", Arial, sans-serif';
+    ctx.textAlign = 'right';
+    const ts = new Date().toLocaleString('en-US', {hour12:false, month:'short', day:'2-digit', hour:'2-digit', minute:'2-digit'});
+    ctx.fillText(ts, W - 20, footY + 42);
+
+    // Convert to blob + dataURL
+    const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+    const dataUrl = canvas.toDataURL('image/png');
+    return { blob, dataUrl };
+  }
+
+  function roundRect(ctx, x, y, w, h, r, fill, stroke) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+    if (fill) ctx.fill();
+    if (stroke) ctx.stroke();
+  }
+
+  function drawStatBox(ctx, x, y, w, h, label, value, valueColor) {
+    ctx.fillStyle = 'rgba(255,255,255,0.06)';
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 1;
+    roundRect(ctx, x, y, w, h, 8, true, true);
+
+    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    ctx.font = '600 10px "Barlow Condensed", Arial, sans-serif';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.fillText(label, x + 12, y + 9);
+
+    ctx.fillStyle = valueColor;
+    ctx.font = '700 20px "Barlow Condensed", Arial, sans-serif';
+    ctx.fillText(value, x + 12, y + 26);
+  }
+
+  // ── Overlay control ───────────────────────────────────────
+  let _currentLayout = 'horizontal';
+
+  async function openShare() {
+    const overlay = document.getElementById('share-overlay');
+    const loading = document.getElementById('share-loading');
+    const preview = document.getElementById('share-preview');
+    const controls = document.getElementById('share-controls');
+    const toggle = document.getElementById('layout-toggle');
+    overlay.classList.add('visible');
+    toggle.style.display = 'flex';
+    loading.style.display = 'block';
+    preview.style.display = 'none';
+    controls.style.display = 'none';
+
+    if (document.fonts && document.fonts.ready) await document.fonts.ready;
+
+    await renderLayout(_currentLayout);
+  }
+
+  async function renderLayout(layout) {
+    const loading = document.getElementById('share-loading');
+    const preview = document.getElementById('share-preview');
+    const controls = document.getElementById('share-controls');
+    loading.style.display = 'block';
+    preview.style.display = 'none';
+    controls.style.display = 'none';
+    try {
+      const { blob, dataUrl } = await renderShareCard(layout);
+      _sharePngBlob = blob;
+      preview.src = dataUrl;
+      preview.style.display = 'block';
+      controls.style.display = 'flex';
+      loading.style.display = 'none';
+    } catch(e) {
+      loading.textContent = 'Error: ' + (e.message || e);
+      console.error(e);
+    }
+  }
+
+  async function switchLayout(layout) {
+    if (_currentLayout === layout) return;
+    _currentLayout = layout;
+    document.querySelectorAll('.layout-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.layout === layout);
+    });
+    await renderLayout(layout);
+  }
+
+  function closeShare() {
+    document.getElementById('share-overlay').classList.remove('visible');
+    document.getElementById('layout-toggle').style.display = 'none';
+  }
+
+  document.getElementById('share-overlay').addEventListener('click', function(e) {
+    if (e.target === this) closeShare();
+  });
+
+  function downloadCard() {
+    if (!_sharePngBlob) return;
+    const url = URL.createObjectURL(_sharePngBlob);
+    const a = document.createElement('a');
+    a.download = 'soybean-' + new Date().toLocaleTimeString('en-US',{hour12:false}).replace(/:/g,'-') + '.png';
+    a.href = url;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  async function shareCard() {
+    if (!_sharePngBlob) return;
+    const btn = document.getElementById('share-wa-btn');
+    btn.disabled = true; btn.textContent = '⏳';
+    const file = new File([_sharePngBlob], 'soybean-' + Date.now() + '.png', { type: 'image/png' });
+    try {
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: 'Soybean Futures' });
+      } else {
+        downloadCard();
+      }
+    } catch(e) {
+      if (e.name !== 'AbortError') console.error('Share failed:', e);
+    }
+    btn.disabled = false; btn.textContent = '📲 Share';
+  }
+
+  // ── Price Alerts ───────────────────────────────────────
+  let alerts = [];
+  let alertsOpen = false;
+  let _audioCtx = null;
+
+  function loadAlerts() {
+    try {
+      const raw = localStorage.getItem('soybean_alerts');
+      if (raw) alerts = JSON.parse(raw);
+    } catch(e) { alerts = []; }
+    renderAlerts();
+  }
+  function saveAlerts() {
+    try { localStorage.setItem('soybean_alerts', JSON.stringify(alerts)); } catch(e) {}
+  }
+
+  function toggleAlerts() {
+    alertsOpen = !alertsOpen;
+    document.getElementById('alerts-body').classList.toggle('open', alertsOpen);
+    document.getElementById('alerts-toggle').classList.toggle('open', alertsOpen);
+  }
+
+  function addAlert() {
+    const contract = document.getElementById('alert-contract').value;
+    const dir      = document.getElementById('alert-dir').value;
+    const priceInp = document.getElementById('alert-price');
+    const price    = parseFloat(priceInp.value);
+    if (isNaN(price)) return;
+    const sym = contract === 'c1'
+      ? (document.getElementById('c1-sym').textContent || 'C1')
+      : (document.getElementById('c2-sym').textContent || 'C2');
+    alerts.push({
+      id: Date.now(),
+      contract, dir, price, sym,
+      triggered: false,
+    });
+    saveAlerts();
+    renderAlerts();
+    priceInp.value = '';
+  }
+
+  function deleteAlert(id) {
+    alerts = alerts.filter(a => a.id !== id);
+    saveAlerts();
+    renderAlerts();
+  }
+
+  function renderAlerts() {
+    const list = document.getElementById('alert-list');
+    const count = document.getElementById('alerts-count');
+    const activeCount = alerts.filter(a => !a.triggered).length;
+    count.textContent = alerts.length ? '(' + activeCount + ' ' + t('alert_active') + ')' : '';
+    if (alerts.length === 0) {
+      list.innerHTML = '<div class="alert-empty" data-i18n="alert_empty">' + t('alert_empty') + '</div>';
+      return;
+    }
+    list.innerHTML = alerts.map(a => {
+      const dirLabel = a.dir === 'above' ? '↑' : '↓';
+      const dirText  = a.dir === 'above' ? t('alert_above') : t('alert_below');
+      return `
+        <div class="alert-item ${a.triggered ? 'triggered' : ''}">
+          <div class="alert-txt">
+            <span class="alert-contract">${a.sym}</span>
+            ${dirText.toLowerCase()} ${dirLabel} ${a.price.toFixed(2)}
+          </div>
+          <div class="alert-status ${a.triggered ? 'triggered' : ''}">${a.triggered ? '✓ ' + t('alert_triggered') : t('alert_watching')}</div>
+          <button class="alert-del" onclick="deleteAlert(${a.id})">✕</button>
+        </div>`;
+    }).join('');
+  }
+
+  function checkAlerts(c1Price, c2Price) {
+    alerts.forEach(a => {
+      if (a.triggered) return;
+      const price = a.contract === 'c1' ? c1Price : c2Price;
+      if (isNaN(price)) return;
+      const hit = a.dir === 'above' ? price >= a.price : price <= a.price;
+      if (hit) {
+        a.triggered = true;
+        fireAlert(a, price);
+      }
+    });
+    saveAlerts();
+    renderAlerts();
+  }
+
+  function fireAlert(alert, price) {
+    // Visual flash
+    const flash = document.createElement('div');
+    flash.className = 'alert-flash';
+    flash.textContent = '🔔 ' + alert.sym + ' ' + (alert.dir === 'above' ? '↑' : '↓') + ' ' + alert.price.toFixed(2) + ' · ' + t('alert_now') + ' ' + price.toFixed(2);
+    document.body.appendChild(flash);
+    setTimeout(() => flash.remove(), 5000);
+
+    // Sound beep
+    try {
+      if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const now = _audioCtx.currentTime;
+      // 6 tones, ~1.3s total
+      [0, 0.22, 0.44, 0.66, 0.88, 1.10].forEach((offset, i) => {
+        const osc = _audioCtx.createOscillator();
+        const gain = _audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = 880 + (i % 3) * 100;
+        gain.gain.setValueAtTime(0, now + offset);
+        gain.gain.linearRampToValueAtTime(0.18, now + offset + 0.02);
+        gain.gain.linearRampToValueAtTime(0, now + offset + 0.18);
+        osc.connect(gain); gain.connect(_audioCtx.destination);
+        osc.start(now + offset); osc.stop(now + offset + 0.19);
+      });
+    } catch(e) {}
+
+    // Browser notification — sticky, with sound, unique tag
+    if ('Notification' in window && Notification.permission === 'granted') {
+      try {
+        const n = new Notification('🔔 ' + alert.sym + ' · ' + alert.price.toFixed(2) + ' ' + t('alert_triggered'), {
+          body: (alert.dir === 'above' ? '↑ ' : '↓ ') + t('alert_now') + ': ' + price.toFixed(2) + ' cnts/bu',
+          tag:  'soybean-alert-' + alert.id,
+          requireInteraction: true,   // stays until user dismisses
+          silent: false,              // OS sound plays
+          renotify: true,
+        });
+        n.onclick = () => { window.focus(); n.close(); };
+      } catch(e) { console.error('Notification error:', e); }
+    }
+  }
+
+  function requestNotifPerm() {
+    if (!('Notification' in window)) return;
+    Notification.requestPermission().then(p => {
+      document.getElementById('alert-perm-btn').style.display = p === 'granted' ? 'none' : 'inline-flex';
+    });
+  }
+
+  function updateNotifBtn() {
+    const btn = document.getElementById('alert-perm-btn');
+    if (!btn) return;
+    if ('Notification' in window && Notification.permission !== 'granted') {
+      btn.style.display = 'inline-flex';
+    } else {
+      btn.style.display = 'none';
+    }
+  }
+
+  // ── i18n ─────────────────────────────────────────────────
+  const TRANSLATIONS = {
+    en: {
+      brand_name:      'Market Dashboard',
+      brand_sub:       'Live Feed · Soybean Futures',
+      title_futures:   'SOYBEAN FUTURES',
+      commodity:       'Soybean',
+      view_chart:      'View Chart',
+      last_price:      'Last Price',
+      waiting:         'Waiting...',
+      high:            'High',
+      low:             'Low',
+      net_chg:         'Net Chg',
+      sessions_title:  'CBOT Trading Sessions (GMT-3)',
+      overnight:       'Overnight Session',
+      day_session:     'Day Session',
+      open_badge:      'Open',
+      closed_badge:    'Closed',
+      opens_in:        'Opens in',
+      closes_in:       'Closes in',
+      status_live:     'Auto-refreshing every 1s',
+      status_waiting:  'Waiting for sender...',
+      status_error:    'Connection error',
+      live_label:      'Live',
+      wait_label:      'Waiting',
+      offline_label:   'Offline',
+      screenshot:      'Screenshot',
+      layout_horizontal: 'Horizontal',
+      layout_vertical:   'Vertical',
+      alerts_title:    '🔔 Price Alerts',
+      alert_above:     'Above',
+      alert_below:     'Below',
+      alert_add:       'Add Alert',
+      alert_enable_notif: 'Enable notifications',
+      alert_empty:     'No alerts set. Add one to get notified when prices cross a threshold.',
+      alert_active:    'active',
+      alert_watching:  'Watching',
+      alert_triggered: 'Triggered',
+      alert_now:       'Now',
+      day_names:       ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],
+      footer:          '⚠ Confidential · Internal Use Only · Unauthorized distribution may be penalized',
+    },
+    es: {
+      brand_name:      'Panel de Mercado',
+      brand_sub:       'Feed en Vivo · Futuros de Soja',
+      title_futures:   'FUTUROS DE SOJA',
+      commodity:       'Soja',
+      view_chart:      'Ver Gráfico',
+      last_price:      'Último Precio',
+      waiting:         'Esperando...',
+      high:            'Máx',
+      low:             'Mín',
+      net_chg:         'Var. Neta',
+      sessions_title:  'Sesiones CBOT (GMT-3)',
+      overnight:       'Sesión Nocturna',
+      day_session:     'Sesión Diurna',
+      open_badge:      'Abierto',
+      closed_badge:    'Cerrado',
+      opens_in:        'Abre en',
+      closes_in:       'Cierra en',
+      status_live:     'Actualizando cada 1s',
+      status_waiting:  'Esperando al emisor...',
+      status_error:    'Error de conexión',
+      live_label:      'En Vivo',
+      wait_label:      'Esperando',
+      offline_label:   'Sin Conexión',
+      screenshot:      'Captura',
+      layout_horizontal: 'Horizontal',
+      layout_vertical:   'Vertical',
+      alerts_title:    '🔔 Alertas de Precio',
+      alert_above:     'Arriba de',
+      alert_below:     'Abajo de',
+      alert_add:       'Añadir Alerta',
+      alert_enable_notif: 'Activar notificaciones',
+      alert_empty:     'Sin alertas. Añade una para ser notificado al cruzar un precio.',
+      alert_active:    'activa(s)',
+      alert_watching:  'Vigilando',
+      alert_triggered: 'Activada',
+      alert_now:       'Actual',
+      day_names:       ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'],
+      footer:          '⚠ Confidencial · Solo Uso Interno · La distribución no autorizada puede ser penalizada',
+    },
+    pt: {
+      brand_name:      'Painel de Mercado',
+      brand_sub:       'Feed ao Vivo · Futuros de Soja',
+      title_futures:   'FUTUROS DE SOJA',
+      commodity:       'Soja',
+      view_chart:      'Ver Gráfico',
+      last_price:      'Último Preço',
+      waiting:         'Aguardando...',
+      high:            'Máx',
+      low:             'Mín',
+      net_chg:         'Var. Líquida',
+      sessions_title:  'Sessões CBOT (GMT-3)',
+      overnight:       'Sessão Noturna',
+      day_session:     'Sessão Diurna',
+      open_badge:      'Aberto',
+      closed_badge:    'Fechado',
+      opens_in:        'Abre em',
+      closes_in:       'Fecha em',
+      status_live:     'Atualizando a cada 1s',
+      status_waiting:  'Aguardando o emissor...',
+      status_error:    'Erro de conexão',
+      live_label:      'Ao Vivo',
+      wait_label:      'Aguardando',
+      offline_label:   'Offline',
+      screenshot:      'Captura',
+      layout_horizontal: 'Horizontal',
+      layout_vertical:   'Vertical',
+      alerts_title:    '🔔 Alertas de Preço',
+      alert_above:     'Acima de',
+      alert_below:     'Abaixo de',
+      alert_add:       'Adicionar Alerta',
+      alert_enable_notif: 'Ativar notificações',
+      alert_empty:     'Sem alertas. Adicione um para ser notificado ao cruzar um preço.',
+      alert_active:    'ativo(s)',
+      alert_watching:  'Observando',
+      alert_triggered: 'Ativado',
+      alert_now:       'Atual',
+      day_names:       ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'],
+      footer:          '⚠ Confidencial · Somente Uso Interno · A distribuição não autorizada pode ser penalizada',
+    }
+  };
+
+  let currentLang = 'en';
+
+  function setLang(lang) {
+    currentLang = lang;
+    const T = TRANSLATIONS[lang];
+    // Static data-i18n elements
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+      const key = el.getAttribute('data-i18n');
+      if (T[key] !== undefined) el.textContent = T[key];
+    });
+    // Dynamic badges (re-run sessions to refresh Open/Closed text)
+    updateSessions();
+    // Dynamic status
+    const statusEl = document.getElementById('status-text');
+    if (statusEl.dataset.state === 'live')    statusEl.textContent = T.status_live;
+    if (statusEl.dataset.state === 'waiting') statusEl.textContent = T.status_waiting;
+    if (statusEl.dataset.state === 'error')   statusEl.textContent = T.status_error;
+    // Live label
+    const liveEl = document.getElementById('live-label');
+    if (liveEl.dataset.state === 'live')    liveEl.textContent = T.live_label;
+    if (liveEl.dataset.state === 'waiting') liveEl.textContent = T.wait_label;
+    if (liveEl.dataset.state === 'offline') liveEl.textContent = T.offline_label;
+    // Flag buttons
+    ['en','es','pt'].forEach(l => {
+      document.getElementById('lang-'+l).classList.toggle('active', l === lang);
+    });
+    updateSessLabels();
+    if (typeof renderAlerts === 'function') renderAlerts();
+  }
+
+  function t(key) { return TRANSLATIONS[currentLang][key] || key; }
+
+  // ── Init ─────────────────────────────────────────────────
+  updateSessLabels();
+  loadAlerts();
+  updateNotifBtn();
+  fetchSettings();
+  fetchPrice();
+  setInterval(fetchPrice,    INTERVAL);
+  setInterval(updateSessions, 1000);
+  setInterval(fetchSettings,  30000);
+
+  // ── Presence heartbeat (receiver) ─────────────────────────
+  let _viewerId = null;
+  try {
+    _viewerId = localStorage.getItem('soybean_viewer_id');
+    if (!_viewerId) {
+      _viewerId = 'v_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now().toString(36);
+      localStorage.setItem('soybean_viewer_id', _viewerId);
+    }
+  } catch(e) {
+    _viewerId = 'v_' + Math.random().toString(36).substr(2, 9);
+  }
+
+  async function sendHeartbeat() {
+    try {
+      await fetch('https://soybean-feed-default-rtdb.firebaseio.com/presence/' + _viewerId + '.json', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ t: Date.now() }),
+      });
+    } catch(e) { /* offline, ignore */ }
+  }
+  // Send first heartbeat immediately, then every 5s
+  sendHeartbeat();
+  setInterval(sendHeartbeat, 5000);
+  // Best-effort: remove our entry when leaving the page
+  window.addEventListener('beforeunload', () => {
+    try {
+      navigator.sendBeacon &&
+      fetch('https://soybean-feed-default-rtdb.firebaseio.com/presence/' + _viewerId + '.json', {
+        method: 'DELETE',
+        keepalive: true,
+      });
+    } catch(e) {}
+  });
+
+</script>
+</body>
+</html>
